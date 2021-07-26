@@ -48,7 +48,7 @@ func main() {
 	pin := rpio.Pin(10)
 	pin.Output()
 
-	for x := 0; x < 20; x++ {
+	for {
 		select {
 		case sig := <-sigs:
 			pin.Low()
