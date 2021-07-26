@@ -5,8 +5,8 @@ GOTEST ?= $(GO) tests
 GOVET ?= $(GO) vet
 
 VERSION ?= $(shell git describe --tags)
-BUILD := $(shell git rev-parse --short HEAD)
-PROJECTNAME := $(shell basename "$(PWD)")
+BUILD ?= $(shell git rev-parse --short HEAD)
+PROJECTNAME ?= $(shell basename "$(PWD)")
 
 # Go related variables.
 GOBASE := $(shell pwd)
@@ -23,7 +23,7 @@ all: help
 
 ## build: Build the binary.
 build:
-	mkdir -p out/bin
+	mkdir -p $(GOBIN)
 	env GOOS=linux GOARCH=arm64 $(GO) build -mod vendor -o $(GOBIN) $(MAIN)
 
 ## clean: Remove build related files.
@@ -33,7 +33,7 @@ clean:
 
 ## vendor: Copy of all packages needed to support builds and tests in the vendor directory
 vendor: 
-	$(GOCMD) mod vendor
+	$(GO) mod vendor
 
 
 help: Makefile
