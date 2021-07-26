@@ -7,6 +7,7 @@ GOVET ?= $(GO) vet
 VERSION ?= $(shell git describe --tags)
 BUILD ?= $(shell git rev-parse --short HEAD)
 PROJECTNAME ?= $(shell basename "$(PWD)")
+GOFILES := $(wildcard *.go)
 
 # Go related variables.
 GOBASE := $(shell pwd)
@@ -14,17 +15,22 @@ GOBIN := $(GOBASE)/out/bin
 MAIN := $(GOBASE)/cmd/baagh
 
 
+
 # Make is verbose in Linux. Make it silent.
 MAKEFLAGS += --silent
 
-.PHONY: help all test vendor build
+.PHONY: help all vendor build run
 
 all: help
 
 ## build: Build the binary.
-build:
+build: $(GOFILES)
 	mkdir -p $(GOBIN)
 	env GOOS=linux GOARCH=arm64 $(GO) build -mod vendor -o $(GOBIN) $(MAIN)
+
+run: build
+	su - pi -c "$(GOBIN)/baagh"
+
 
 ## clean: Remove build related files.
 clean: 
