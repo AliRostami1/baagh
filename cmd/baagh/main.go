@@ -2,6 +2,9 @@ package main
 
 import (
 	"log"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/spf13/viper"
@@ -32,6 +35,10 @@ func main() {
 		}
 	}
 
+	// React to process signals
+	sigs := make(chan os.Signal, 1)
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+
 	// initialize rpio package and allocate memory
 	if err := rpio.Open(); err != nil {
 		sugar.Fatalf("can't open and memory map GPIO memory range from /dev/mem: %v", err)
@@ -42,6 +49,13 @@ func main() {
 	pin.Output()
 
 	for x := 0; x < 20; x++ {
+		select {
+		case sig := <-sigs:
+			pin.Low()
+			sugar.Info(sig)
+			os.Exit(1)
+		default:
+		}
 		pin.Toggle()
 		time.Sleep(time.Second)
 	}
