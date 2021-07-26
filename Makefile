@@ -19,7 +19,7 @@ MAIN := $(GOBASE)/cmd/baagh
 # Make is verbose in Linux. Make it silent.
 MAKEFLAGS += --silent
 
-.PHONY: help all vendor build run
+.PHONY: help all vendor build run root
 
 all: help
 
@@ -28,9 +28,9 @@ build: $(GOFILES)
 	mkdir -p $(GOBIN)
 	env GOOS=linux GOARCH=arm64 $(GO) build -mod vendor -o $(GOBIN) $(MAIN)
 
+## run: runs the application
 run: build
 	su - pi -c "$(GOBIN)/baagh"
-
 
 ## clean: Remove build related files.
 clean: 
@@ -41,6 +41,9 @@ clean:
 vendor: 
 	$(GO) mod vendor
 
+## root: by running this, you can access 
+root:
+	sudo python3 $(GOBASE)/scripts/create_gpio_user_permissions.py
 
 help: Makefile
 	@echo
