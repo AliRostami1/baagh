@@ -10,6 +10,14 @@ import (
 )
 
 func main() {
+	// build zap logger
+	logger, err := zap.NewProduction()
+	if err != nil {
+		log.Fatalf("can't initialize zap logger: %v", err)
+	}
+	defer logger.Sync()
+	sugar := logger.Sugar()
+
 	// viper stuff
 	viper.SetConfigName("config")
 	viper.SetConfigType("yaml")
@@ -20,18 +28,9 @@ func main() {
 		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
 			// Config file not found; ignore error
 		} else {
-			log.Fatal(err)
+			sugar.Fatal(err)
 		}
 	}
-
-	// build zap logger
-	logger, err := zap.NewProduction()
-	if err != nil {
-		log.Fatalf("can't initialize zap logger: %v", err)
-	}
-	defer logger.Sync()
-
-	sugar := logger.Sugar()
 
 	// initialize rpio package and allocate memory
 	if err := rpio.Open(); err != nil {
