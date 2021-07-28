@@ -1,6 +1,7 @@
 package main
 
 import (
+	"log"
 	"os"
 	"time"
 
@@ -10,7 +11,10 @@ import (
 )
 
 func main() {
-	app := application.New()
+	app, err := application.New()
+	if err != nil {
+		log.Fatalf("there was a problem initiating the application: %v", err)
+	}
 
 	// initialize rpio package and allocate memory
 	if err := rpio.Open(); err != nil {

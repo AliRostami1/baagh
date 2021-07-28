@@ -34,8 +34,15 @@ func (d *Db) OnSet(key string, fn ...CallbackFn) {
 	d.events[key] = append(d.events[key], fn...)
 }
 
-func New(ctx context.Context) *Db {
-	return &Db{
+func (d *Db) Connected() error {
+	if _, err := d.db.Ping(d.ctx).Result(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func New(ctx context.Context) (db *Db, err error) {
+	db = &Db{
 		db: redis.NewClient(&redis.Options{
 			Addr:     "localhost:6379",
 			Password: "", // no password set
@@ -44,4 +51,10 @@ func New(ctx context.Context) *Db {
 		events: make(map[string][]CallbackFn),
 		ctx:    ctx,
 	}
+
+	if err := db.Connected(); err != nil {
+		return nil, err
+	}
+
+	return db, nil
 }

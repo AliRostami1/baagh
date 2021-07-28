@@ -21,7 +21,7 @@ type Application struct {
 	Shutdown func(string)
 }
 
-func New() Application {
+func New() (*Application, error) {
 	logger := logger.GetLogger()
 
 	ctx, cancelCtx := context.WithCancel(context.Background())
@@ -35,11 +35,16 @@ func New() Application {
 		shutdown(fmt.Sprintf("%v signal received, terminating", s))
 	})
 
-	return Application{
+	db, err := db.New(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't connect to db: %v", err)
+	}
+
+	return &Application{
 		Log:      logger,
 		Config:   config.GetConfig(),
-		Db:       db.New(ctx),
+		Db:       db,
 		Ctx:      ctx,
 		Shutdown: shutdown,
-	}
+	}, nil
 }
