@@ -19,7 +19,7 @@ MAIN ?= $(GOBASE)/cmd/baagh
 # Make is verbose in Linux. Make it silent.
 MAKEFLAGS += --silent
 
-.PHONY: help all vendor run root
+.PHONY: help all vendor build run root
 
 all: help
 
@@ -36,7 +36,6 @@ run: build
 
 ## clean: Remove build related files.
 clean: 
-	rm -fr ./bin
 	rm -fr ./out
 
 ## vendor: Copy of all packages needed to support builds and tests in the vendor directory
