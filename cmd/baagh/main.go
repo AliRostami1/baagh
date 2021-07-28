@@ -10,7 +10,6 @@ import (
 )
 
 func main() {
-
 	app := application.New()
 
 	// initialize rpio package and allocate memory
@@ -23,12 +22,17 @@ func main() {
 	pin.Output()
 
 	for {
-		if _, ok := <-app.Ctx.Done(); !ok {
-			pin.Low()
-			app.Log.Info(app.Ctx.Err())
-			os.Exit(1)
+		select {
+		case _, ok := <-app.Ctx.Done():
+			if !ok {
+				pin.Low()
+				app.Log.Info(app.Ctx.Err())
+				os.Exit(1)
+			}
+		default: // pass
 		}
 		pin.Toggle()
 		time.Sleep(time.Second)
 	}
+
 }

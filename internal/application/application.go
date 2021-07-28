@@ -31,7 +31,7 @@ func New() Application {
 		cancelCtx()
 	}
 
-	signal.Handle(func(s os.Signal) {
+	go signal.Handle(func(s os.Signal) {
 		shutdown(fmt.Sprintf("%v signal received, terminating", s))
 	})
 
