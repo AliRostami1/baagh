@@ -1,7 +1,6 @@
 package signal
 
 import (
-	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
@@ -13,9 +12,9 @@ func new() <-chan os.Signal {
 	return sigs
 }
 
-func Handle(fn func(string)) {
+func Handle(fn func(os.Signal)) {
 	sig := new()
 	for s := range sig {
-		fn(fmt.Sprintf("%v signal recieved, terminating", s))
+		fn(s)
 	}
 }

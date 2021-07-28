@@ -2,6 +2,8 @@ package application
 
 import (
 	"context"
+	"fmt"
+	"os"
 
 	"go.uber.org/zap"
 
@@ -21,12 +23,17 @@ type Application struct {
 
 func New() Application {
 	logger := logger.GetLogger()
+
 	ctx, cancelCtx := context.WithCancel(context.Background())
+
 	shutdown := func(reason string) {
 		logger.Info(reason)
 		cancelCtx()
 	}
-	signal.Handle(shutdown)
+
+	signal.Handle(func(s os.Signal) {
+		shutdown(fmt.Sprintf("%v signal received, terminating", s))
+	})
 
 	return Application{
 		Log:      logger,
