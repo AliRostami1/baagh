@@ -8,8 +8,8 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/AliRostami1/baagh/internal/config"
-	"github.com/AliRostami1/baagh/internal/logger"
 	"github.com/AliRostami1/baagh/pkg/db"
+	"github.com/AliRostami1/baagh/pkg/logger"
 	"github.com/AliRostami1/baagh/pkg/signal"
 )
 
