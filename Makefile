@@ -30,7 +30,7 @@ build: $(GOFILES)
 
 ## run: runs the application
 run: build
-	su - pi -c "$(GOBIN)/baagh"
+	$(GOBIN)/baagh
 
 ## clean: Remove build related files.
 clean: 
