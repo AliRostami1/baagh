@@ -30,7 +30,6 @@ func main() {
 		case _, ok := <-app.Ctx.Done():
 			if !ok {
 				pin.Low()
-				app.Log.Info(app.Ctx.Err())
 				os.Exit(1)
 			}
 		default: // pass
