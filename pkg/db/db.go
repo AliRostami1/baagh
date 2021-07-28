@@ -34,7 +34,7 @@ func (d *Db) OnSet(key string, fn ...CallbackFn) {
 	d.events[key] = append(d.events[key], fn...)
 }
 
-func New() *Db {
+func New(ctx context.Context) *Db {
 	return &Db{
 		db: redis.NewClient(&redis.Options{
 			Addr:     "localhost:6379",
@@ -42,6 +42,6 @@ func New() *Db {
 			DB:       0,  // use default DB
 		}),
 		events: make(map[string][]CallbackFn),
-		ctx:    context.Background(),
+		ctx:    ctx,
 	}
 }

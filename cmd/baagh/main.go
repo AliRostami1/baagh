@@ -7,15 +7,11 @@ import (
 	"github.com/stianeikeland/go-rpio/v4"
 
 	"github.com/AliRostami1/baagh/internal/application"
-	"github.com/AliRostami1/baagh/pkg/signal"
 )
 
 func main() {
 
 	app := application.New()
-
-	// React to process signals
-	exitSig := signal.HandleSignals()
 
 	// initialize rpio package and allocate memory
 	if err := rpio.Open(); err != nil {
@@ -27,12 +23,10 @@ func main() {
 	pin.Output()
 
 	for {
-		select {
-		case sig := <-exitSig:
+		if _, ok := <-app.Ctx.Done(); !ok {
 			pin.Low()
-			app.Log.Info(sig)
+			app.Log.Info(app.Ctx.Err())
 			os.Exit(1)
-		default:
 		}
 		pin.Toggle()
 		time.Sleep(time.Second)
