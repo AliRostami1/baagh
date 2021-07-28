@@ -1,16 +1,14 @@
 package logger
 
 import (
-	"log"
-
 	"go.uber.org/zap"
 )
 
-func GetLogger() *zap.SugaredLogger {
+func New() (log *zap.SugaredLogger, err error) {
 	logger, err := zap.NewProduction()
 	if err != nil {
-		log.Fatalf("can't initialize zap logger: %v", err)
+		return nil, err
 	}
 	defer logger.Sync()
-	return logger.Sugar()
+	return logger.Sugar(), nil
 }
