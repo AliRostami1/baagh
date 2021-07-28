@@ -16,18 +16,23 @@ type Application struct {
 	Config   *config.Config
 	Db       *db.Db
 	Ctx      context.Context
-	Shutdown func()
+	Shutdown func(string)
 }
 
 func New() Application {
+	logger := logger.GetLogger()
 	ctx, cancelCtx := context.WithCancel(context.Background())
-	signal.Handle(cancelCtx)
+	shutdown := func(reason string) {
+		logger.Info(reason)
+		cancelCtx()
+	}
+	signal.Handle(shutdown)
 
 	return Application{
-		Log:      logger.GetLogger(),
+		Log:      logger,
 		Config:   config.GetConfig(),
 		Db:       db.New(ctx),
 		Ctx:      ctx,
-		Shutdown: cancelCtx,
+		Shutdown: shutdown,
 	}
 }
