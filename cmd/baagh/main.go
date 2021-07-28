@@ -12,7 +12,7 @@ import (
 
 func main() {
 
-	app := application.NewApplication()
+	app := application.New()
 
 	// React to process signals
 	exitSig := signal.HandleSignals()

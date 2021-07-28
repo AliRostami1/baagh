@@ -9,7 +9,7 @@ import (
 type Config struct {
 }
 
-func GetConfig() Config {
+func GetConfig() *Config {
 	viper.SetConfigName("config")
 	viper.SetConfigType("yaml")
 	viper.AddConfigPath("/etc/baagh/")
@@ -23,5 +23,5 @@ func GetConfig() Config {
 		}
 	}
 
-	return Config{}
+	return &Config{}
 }
