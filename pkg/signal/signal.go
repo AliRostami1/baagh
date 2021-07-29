@@ -1,6 +1,7 @@
 package signal
 
 import (
+	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
@@ -17,4 +18,10 @@ func Handle(fn func(os.Signal)) {
 	for s := range sig {
 		fn(s)
 	}
+}
+
+func ShutdownHandler(fn func(string)) {
+	go Handle(func(s os.Signal) {
+		fn(fmt.Sprintf("terminating: %v signal received", s))
+	})
 }

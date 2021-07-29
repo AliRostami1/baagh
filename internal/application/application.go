@@ -3,7 +3,6 @@ package application
 import (
 	"context"
 	"fmt"
-	"os"
 
 	"go.uber.org/zap"
 
@@ -45,9 +44,7 @@ func New() (*Application, error) {
 	}
 
 	// here we are handling terminate signals
-	go signal.Handle(func(s os.Signal) {
-		shutdown(fmt.Sprintf("terminating: %v signal received", s))
-	})
+	signal.ShutdownHandler(shutdown)
 
 	// Connect to and Initialize a db instnace
 	db, err := db.New(ctx)
