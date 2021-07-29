@@ -5,9 +5,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/stianeikeland/go-rpio/v4"
-
 	"github.com/AliRostami1/baagh/internal/application"
+	"github.com/AliRostami1/baagh/pkg/controller/gpio"
 )
 
 func main() {
@@ -17,24 +16,32 @@ func main() {
 	}
 
 	// initialize rpio package and allocate memory
-	if err := rpio.Open(); err != nil {
-		app.Log.Fatalf("can't open and memory map GPIO memory range from /dev/mem: %v", err)
+	gpioController, err := gpio.New(app.Db)
+	if err != nil {
+		app.Log.Errorf("there was a problem initiating the gpio controller: %v", err)
 	}
-	defer rpio.Close()
+	defer gpioController.Close()
 
-	pin := rpio.Pin(10)
-	pin.Output()
+	gpioController.RegisterOutputPin(10, &gpio.EventListeners{
+		Key: "test",
+		Fn:  gpioController.Sync,
+	})
 
+	app.Db.Set("test", false, 0)
 	for {
 		select {
 		case _, ok := <-app.Ctx.Done():
 			if !ok {
-				pin.Low()
+				gpioController.Cleanup()
 				os.Exit(1)
 			}
 		default: // pass
 		}
-		pin.Toggle()
+		res, err := app.Db.Get("test").Bool()
+		if err != nil {
+			app.Log.Fatal("ddddaaymn")
+		}
+		app.Db.Set("test", !res, 0)
 		time.Sleep(time.Second)
 	}
 
