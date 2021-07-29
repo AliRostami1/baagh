@@ -16,11 +16,10 @@ func main() {
 	}
 
 	// initialize rpio package and allocate memory
-	gpioController, err := gpio.New(app.Db)
+	gpioController, err := gpio.New(app.Ctx, app.Db)
 	if err != nil {
 		app.Log.Errorf("there was a problem initiating the gpio controller: %v", err)
 	}
-	defer gpioController.Close()
 
 	gpioController.RegisterOutputPin(10, &gpio.EventListeners{
 		Key: "test",
@@ -32,7 +31,6 @@ func main() {
 		select {
 		case _, ok := <-app.Ctx.Done():
 			if !ok {
-				gpioController.Cleanup()
 				os.Exit(1)
 			}
 		default: // pass

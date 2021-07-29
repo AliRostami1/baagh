@@ -1,6 +1,7 @@
 package gpio
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/go-redis/redis/v8"
@@ -11,19 +12,23 @@ import (
 )
 
 type GPIO struct {
-	Close      func() error
 	db         *db.Db
+	ctx        context.Context
 	outputPins []rpio.Pin
 }
 
-func New(db *db.Db) (*GPIO, error) {
+func New(ctx context.Context, db *db.Db) (*GPIO, error) {
 	if err := rpio.Open(); err != nil {
 		return nil, fmt.Errorf("can't open and memory map GPIO memory range from /dev/mem: %v", err)
 	}
-	return &GPIO{
-		Close: rpio.Close,
-		db:    db,
-	}, nil
+
+	gpio := &GPIO{
+		db:  db,
+		ctx: ctx,
+	}
+	go gpio.cleanup()
+
+	return gpio, nil
 }
 
 type EventHandler func(pin int, val bool)
@@ -45,8 +50,9 @@ func (g *GPIO) RegisterOutputPin(pin int, listen *EventListeners) (err error) {
 }
 
 func (g *GPIO) RegisterInputPin(pin int) {
-	go sensor.SensorFn(pin, func(s rpio.State) {
-		g.db.Set(fmt.Sprint(pin), s, 0)
+	g.Set(pin, false)
+	go sensor.SensorFn(pin, func(s bool) {
+		g.Set(pin, s)
 	})
 }
 
@@ -90,7 +96,9 @@ func (g *GPIO) Set(pin int, val bool) {
 	}
 }
 
-func (g *GPIO) Cleanup() {
+func (g *GPIO) cleanup() {
+	defer rpio.Close()
+	<-g.ctx.Done()
 	for _, pin := range g.outputPins {
 		pin.Low()
 	}
