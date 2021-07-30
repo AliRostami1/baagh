@@ -42,12 +42,12 @@ func (d *Db) Connected() error {
 	return nil
 }
 
-func New(ctx context.Context, url string) (db *Db, err error) {
+func New(ctx context.Context, url string) (*Db, error) {
 	opt, err := redis.ParseURL(url)
 	if err != nil {
 		return nil, err
 	}
-	db = &Db{
+	db := &Db{
 		db:     redis.NewClient(opt),
 		events: make(map[string][]CallbackFn),
 		ctx:    ctx,

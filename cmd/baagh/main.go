@@ -18,7 +18,7 @@ func main() {
 	// initialize rpio package and allocate memory
 	gpioController, err := gpio.New(app.Ctx, app.Db)
 	if err != nil {
-		app.Log.Errorf("there was a problem initiating the gpio controller: %v", err)
+		app.Log.Fatalf("there was a problem initiating the gpio controller: %v", err)
 	}
 
 	gpioController.RegisterOutputPin(10, &gpio.EventListeners{
@@ -27,10 +27,6 @@ func main() {
 	})
 
 	gpioController.RegisterInputPin(9, sensor.PullDown)
-
-	// go sensor.SensorFn(9, func(s bool) {
-	// 	app.Log.Info(s)
-	// })
 
 	<-app.Ctx.Done()
 	os.Exit(0)
