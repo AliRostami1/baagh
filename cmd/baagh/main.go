@@ -3,11 +3,10 @@ package main
 import (
 	"log"
 	"os"
-	"time"
-
-	"github.com/stianeikeland/go-rpio/v4"
 
 	"github.com/AliRostami1/baagh/internal/application"
+	"github.com/AliRostami1/baagh/pkg/controller/gpio"
+	"github.com/AliRostami1/baagh/pkg/sensor"
 )
 
 func main() {
@@ -17,25 +16,22 @@ func main() {
 	}
 
 	// initialize rpio package and allocate memory
-	if err := rpio.Open(); err != nil {
-		app.Log.Fatalf("can't open and memory map GPIO memory range from /dev/mem: %v", err)
-	}
-	defer rpio.Close()
-
-	pin := rpio.Pin(10)
-	pin.Output()
-
-	for {
-		select {
-		case _, ok := <-app.Ctx.Done():
-			if !ok {
-				pin.Low()
-				os.Exit(1)
-			}
-		default: // pass
-		}
-		pin.Toggle()
-		time.Sleep(time.Second)
+	gpioController, err := gpio.New(app.Ctx, app.Db)
+	if err != nil {
+		app.Log.Errorf("there was a problem initiating the gpio controller: %v", err)
 	}
 
+	gpioController.RegisterOutputPin(10, &gpio.EventListeners{
+		Key: "9",
+		Fn:  gpioController.Sync,
+	})
+
+	gpioController.RegisterInputPin(9, sensor.PullDown)
+
+	// go sensor.SensorFn(9, func(s bool) {
+	// 	app.Log.Info(s)
+	// })
+
+	<-app.Ctx.Done()
+	os.Exit(0)
 }

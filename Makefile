@@ -29,6 +29,11 @@ build:
 	mkdir -p $(GOBIN)
 	env GOOS=linux GOARCH=arm64 $(GO) build -mod vendor -o $(EXECUTABLE) $(MAIN)
 
+install: 
+	echo "Installing..."
+	$(GO) install -mod vendor $(MAIN)
+	echo "Installed."
+
 ## run: runs the application
 run: build
 	echo "Running"
