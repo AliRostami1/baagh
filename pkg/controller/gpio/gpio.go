@@ -50,8 +50,7 @@ func (g *GPIO) RegisterOutputPin(pin int, listen *EventListeners) (err error) {
 }
 
 func (g *GPIO) RegisterInputPin(pin int) {
-	g.Set(pin, false)
-	go sensor.SensorFn(pin, func(s bool) {
+	go sensor.SensorFn(g.ctx, pin, func(s bool) {
 		g.Set(pin, s)
 	})
 }

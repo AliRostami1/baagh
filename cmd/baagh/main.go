@@ -3,7 +3,6 @@ package main
 import (
 	"log"
 	"os"
-	"time"
 
 	"github.com/AliRostami1/baagh/internal/application"
 	"github.com/AliRostami1/baagh/pkg/controller/gpio"
@@ -22,25 +21,17 @@ func main() {
 	}
 
 	gpioController.RegisterOutputPin(10, &gpio.EventListeners{
-		Key: "test",
+		Key: "9",
 		Fn:  gpioController.Sync,
 	})
 
-	app.Db.Set("test", false, 0)
-	for {
-		select {
-		case _, ok := <-app.Ctx.Done():
-			if !ok {
-				os.Exit(1)
-			}
-		default: // pass
-		}
-		res, err := app.Db.Get("test").Bool()
-		if err != nil {
-			app.Log.Fatal("ddddaaymn")
-		}
-		app.Db.Set("test", !res, 0)
-		time.Sleep(time.Second)
-	}
+	gpioController.RegisterInputPin(9)
+
+	// go sensor.SensorFn(9, func(s bool) {
+	// 	app.Log.Info(s)
+	// })
+
+	<-app.Ctx.Done()
+	os.Exit(1)
 
 }

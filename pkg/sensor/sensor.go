@@ -1,26 +1,45 @@
 package sensor
 
-import "github.com/stianeikeland/go-rpio/v4"
+import (
+	"context"
+
+	"github.com/stianeikeland/go-rpio/v4"
+)
 
 type SensorCallback = func(current bool)
 
-func SensorFn(pin int, fn SensorCallback) {
+func SensorFn(ctx context.Context, pin int, fn SensorCallback) {
 	ch := make(chan bool)
-	go Sensor(pin, ch)
-	for state := range ch {
-		fn(state)
+	go Sensor(ctx, pin, ch)
+	for {
+		if state, ok := <-ch; ok {
+			fn(state)
+		} else {
+			break
+		}
 	}
 }
 
-func Sensor(pin int, ch chan<- bool) {
+func Sensor(ctx context.Context, pin int, ch chan<- bool) {
+	defer close(ch)
 	p := rpio.Pin(pin)
 	p.Input()
+	p.PullDown()
+
 	prevState := false
+infinite:
 	for {
-		state := rToB(p.Read())
-		if state != prevState {
-			prevState = state
-			ch <- state
+		select {
+		case _, ok := <-ctx.Done():
+			if !ok {
+				break infinite
+			}
+		default:
+			state := rToB(p.Read())
+			if state != prevState {
+				prevState = state
+				ch <- state
+			}
 		}
 	}
 }
