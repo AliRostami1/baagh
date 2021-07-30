@@ -73,18 +73,6 @@ func (g *GPIO) On(pin int, listen []*EventListeners) error {
 	return nil
 }
 
-func (g *GPIO) Sync(pin int, val bool) {
-	g.Set(pin, val)
-}
-
-func (g *GPIO) ReverseSync(pin int, val bool) {
-	if val {
-		g.Set(pin, false)
-	} else {
-		g.Set(pin, true)
-	}
-}
-
 func (g *GPIO) Set(pin int, val bool) {
 	p := rpio.Pin(pin)
 	g.db.Set(fmt.Sprint(pin), val, 0)
