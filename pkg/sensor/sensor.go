@@ -8,9 +8,17 @@ import (
 
 type SensorCallback = func(current bool)
 
-func SensorFn(ctx context.Context, pin int, fn SensorCallback) {
+type Pull uint8
+
+const (
+	PullOff Pull = iota
+	PullDown
+	PullUp
+)
+
+func SensorFn(ctx context.Context, pin int, pull Pull, fn SensorCallback) {
 	ch := make(chan bool)
-	go Sensor(ctx, pin, ch)
+	go Sensor(ctx, pin, pull, ch)
 	for {
 		if state, ok := <-ch; ok {
 			fn(state)
@@ -20,11 +28,11 @@ func SensorFn(ctx context.Context, pin int, fn SensorCallback) {
 	}
 }
 
-func Sensor(ctx context.Context, pin int, ch chan<- bool) {
+func Sensor(ctx context.Context, pin int, pull Pull, ch chan<- bool) {
 	defer close(ch)
 	p := rpio.Pin(pin)
 	p.Input()
-	p.PullDown()
+	p.Pull(rpio.Pull(pull))
 
 	prevState := false
 infinite:

@@ -6,6 +6,7 @@ import (
 
 	"github.com/AliRostami1/baagh/internal/application"
 	"github.com/AliRostami1/baagh/pkg/controller/gpio"
+	"github.com/AliRostami1/baagh/pkg/sensor"
 )
 
 func main() {
@@ -25,13 +26,12 @@ func main() {
 		Fn:  gpioController.Sync,
 	})
 
-	gpioController.RegisterInputPin(9)
+	gpioController.RegisterInputPin(9, sensor.PullDown)
 
 	// go sensor.SensorFn(9, func(s bool) {
 	// 	app.Log.Info(s)
 	// })
 
 	<-app.Ctx.Done()
-	os.Exit(1)
-
+	os.Exit(0)
 }
