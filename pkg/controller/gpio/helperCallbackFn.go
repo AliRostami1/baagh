@@ -1,13 +1,40 @@
 package gpio
 
-func (g *GPIO) Sync(pin int, val bool) {
-	g.Set(pin, val)
+import "time"
+
+func (g *GPIO) OutputSync(pin int, key string) {
+	g.Output(pin, &EventListeners{
+		Key: key,
+		Fn: func(p int, v bool) {
+			g.Set(p, v)
+		},
+	})
 }
 
-func (g *GPIO) ReverseSync(pin int, val bool) {
-	if val {
-		g.Set(pin, false)
-	} else {
-		g.Set(pin, true)
-	}
+func (g *GPIO) OutputRSync(pin int, key string) {
+	g.Output(pin, &EventListeners{
+		Key: key,
+		Fn: func(p int, v bool) {
+			if v {
+				g.Set(p, false)
+			} else {
+				g.Set(p, true)
+			}
+		},
+	})
+}
+
+func (g *GPIO) OutputAlarm(pin int, key string, delay time.Duration) {
+	g.Output(pin, &EventListeners{
+		Key: key,
+		Fn: func(p int, v bool) {
+			if v {
+				g.Set(p, true)
+				go func() {
+					time.Sleep(delay)
+					g.Set(p, false)
+				}()
+			}
+		},
+	})
 }

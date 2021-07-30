@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"os"
+	"time"
 
 	"github.com/AliRostami1/baagh/internal/application"
 	"github.com/AliRostami1/baagh/pkg/controller/gpio"
@@ -21,12 +22,9 @@ func main() {
 		app.Log.Fatalf("there was a problem initiating the gpio controller: %v", err)
 	}
 
-	gpioController.RegisterOutputPin(10, &gpio.EventListeners{
-		Key: "9",
-		Fn:  gpioController.Sync,
-	})
+	gpioController.OutputAlarm(10, "9", 10*time.Second)
 
-	gpioController.RegisterInputPin(9, sensor.PullDown)
+	gpioController.Input(9, sensor.PullDown)
 
 	<-app.Ctx.Done()
 	os.Exit(0)

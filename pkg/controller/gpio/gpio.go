@@ -38,38 +38,37 @@ type EventListeners struct {
 	Fn  EventHandler
 }
 
-func (g *GPIO) RegisterOutputPin(pin int, listen *EventListeners) (err error) {
+func (g *GPIO) Output(pin int, listen *EventListeners) (err error) {
 	p := rpio.Pin(pin)
 	p.Output()
 	g.addOutputPins(p)
 	g.Set(pin, false)
 
-	err = g.On(pin, append([]*EventListeners{}, listen))
+	err = g.on(pin, listen)
 
 	return err
 }
 
-func (g *GPIO) RegisterInputPin(pin int, pull sensor.Pull) {
+func (g *GPIO) Input(pin int, pull sensor.Pull) {
 	go sensor.SensorFn(g.ctx, pin, pull, func(s bool) {
 		g.Set(pin, s)
 	})
 }
 
-func (g *GPIO) On(pin int, listen []*EventListeners) error {
-	for _, ev := range listen {
-		if ev.Key == fmt.Sprint(pin) {
-			return fmt.Errorf("circular dependency: pin%[1]o can't depend on pin%[1]o", pin)
-		}
-
-		g.db.On(ev.Key, func(key string, val *redis.StringCmd) error {
-			v, err := val.Bool()
-			if err != nil {
-				return fmt.Errorf("can't sync ")
-			}
-			ev.Fn(pin, v)
-			return nil
-		})
+func (g *GPIO) on(pin int, listen *EventListeners) error {
+	if listen.Key == fmt.Sprint(pin) {
+		return fmt.Errorf("circular dependency: pin%[1]o can't depend on pin%[1]o", pin)
 	}
+
+	g.db.On(listen.Key, func(key string, val *redis.StringCmd) error {
+		v, err := val.Bool()
+		if err != nil {
+			return fmt.Errorf("can't sync ")
+		}
+		listen.Fn(pin, v)
+		return nil
+	})
+
 	return nil
 }
 
