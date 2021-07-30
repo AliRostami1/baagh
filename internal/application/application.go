@@ -51,7 +51,7 @@ func New() (*Application, error) {
 	signal.ShutdownHandler(shutdown)
 
 	// Connect to and Initialize a db instnace
-	db, err := db.New(ctx)
+	db, err := db.New(ctx, config.GetString("redis_url"))
 	if err != nil {
 		return nil, fmt.Errorf("couldn't connect to db: %v", err)
 	}

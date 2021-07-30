@@ -42,13 +42,13 @@ func (d *Db) Connected() error {
 	return nil
 }
 
-func New(ctx context.Context) (db *Db, err error) {
+func New(ctx context.Context, url string) (db *Db, err error) {
+	opt, err := redis.ParseURL(url)
+	if err != nil {
+		return nil, err
+	}
 	db = &Db{
-		db: redis.NewClient(&redis.Options{
-			Addr:     "localhost:6379",
-			Password: "", // no password set
-			DB:       0,  // use default DB
-		}),
+		db:     redis.NewClient(opt),
 		events: make(map[string][]CallbackFn),
 		ctx:    ctx,
 	}
