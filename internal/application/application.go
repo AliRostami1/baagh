@@ -6,7 +6,7 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/AliRostami1/baagh/internal/config"
+	"github.com/AliRostami1/baagh/pkg/config"
 	"github.com/AliRostami1/baagh/pkg/db"
 	"github.com/AliRostami1/baagh/pkg/logger"
 	"github.com/AliRostami1/baagh/pkg/signal"
@@ -28,11 +28,15 @@ func New() (*Application, error) {
 	}
 
 	// get the config
-	config, _ := config.New()
+	config, err := config.New(&config.ConfigOptions{
+		ConfigName:  "config",
+		ConfigType:  "yaml",
+		ConfigPaths: []string{"/etc/baagh/", "$HOME/.baagh", "."},
+	})
 	// we temporarily ignore this check so it doesn't terminate the program, untill we add config support
-	// if err != nil {
-	// 	return nil, nil
-	// }
+	if err != nil {
+		return nil, err
+	}
 
 	// this is the application context, it will determine when the application will exit
 	ctx, cancelCtx := context.WithCancel(context.Background())
