@@ -8,7 +8,6 @@ import (
 	"github.com/stianeikeland/go-rpio/v4"
 
 	"github.com/AliRostami1/baagh/pkg/db"
-	"github.com/AliRostami1/baagh/pkg/sensor"
 )
 
 type GPIO struct {
@@ -17,42 +16,22 @@ type GPIO struct {
 	outputPins []rpio.Pin
 }
 
-func New(ctx context.Context, db *db.Db) (*GPIO, error) {
-	if err := rpio.Open(); err != nil {
-		return nil, fmt.Errorf("can't open and memory map GPIO memory range from /dev/mem: %v", err)
-	}
-
-	gpio := &GPIO{
-		db:  db,
-		ctx: ctx,
-	}
-	go gpio.cleanup()
-
-	return gpio, nil
-}
-
 type EventHandler func(pin int, val bool)
-
 type EventListener struct {
 	Key string
 	Fn  EventHandler
 }
 
-func (g *GPIO) Output(pin int, listen *EventListener) (err error) {
-	p := rpio.Pin(pin)
-	p.Output()
-	g.addOutputPins(p)
-	g.Set(pin, false)
-
-	err = g.on(pin, listen)
-
-	return err
-}
-
-func (g *GPIO) Input(pin int, pull sensor.Pull) {
-	go sensor.SensorFunc(g.ctx, pin, pull, func(s bool) {
-		g.Set(pin, s)
-	})
+func New(ctx context.Context, db *db.Db) (*GPIO, error) {
+	if err := rpio.Open(); err != nil {
+		return nil, fmt.Errorf("can't open and memory map GPIO memory range from /dev/mem: %v", err)
+	}
+	gpio := &GPIO{
+		db:  db,
+		ctx: ctx,
+	}
+	go gpio.cleanup()
+	return gpio, nil
 }
 
 func (g *GPIO) on(pin int, listen *EventListener) error {
@@ -72,14 +51,18 @@ func (g *GPIO) on(pin int, listen *EventListener) error {
 	return nil
 }
 
-func (g *GPIO) Set(pin int, val bool) {
+func (g *GPIO) Set(pin int, val bool) error {
 	p := rpio.Pin(pin)
-	g.db.Set(fmt.Sprint(pin), val, 0)
+
+	if _, err := g.db.Set(fmt.Sprint(pin), val, 0); err != nil {
+		return err
+	}
 	if val {
 		p.Write(rpio.High)
 	} else {
 		p.Write(rpio.Low)
 	}
+	return nil
 }
 
 func (g *GPIO) cleanup() {
