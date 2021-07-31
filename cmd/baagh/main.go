@@ -2,7 +2,6 @@ package main
 
 import (
 	"log"
-	"os"
 	"time"
 
 	"github.com/AliRostami1/baagh/internal/application"
@@ -27,5 +26,4 @@ func main() {
 	gpioController.Input(9, sensor.PullDown)
 
 	<-app.Ctx.Done()
-	os.Exit(0)
 }
