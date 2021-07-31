@@ -22,7 +22,7 @@ func main() {
 		app.Log.Fatalf("there was a problem initiating the gpio controller: %v", err)
 	}
 
-	gpioController.OutputAlarm(10, "9", 10*time.Second)
+	gpioController.OutputAlarm(10, "9", 7*time.Second)
 
 	gpioController.Input(9, sensor.PullDown)
 
