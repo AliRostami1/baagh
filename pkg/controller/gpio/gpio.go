@@ -33,12 +33,12 @@ func New(ctx context.Context, db *db.Db) (*GPIO, error) {
 
 type EventHandler func(pin int, val bool)
 
-type EventListeners struct {
+type EventListener struct {
 	Key string
 	Fn  EventHandler
 }
 
-func (g *GPIO) Output(pin int, listen *EventListeners) (err error) {
+func (g *GPIO) Output(pin int, listen *EventListener) (err error) {
 	p := rpio.Pin(pin)
 	p.Output()
 	g.addOutputPins(p)
@@ -50,12 +50,12 @@ func (g *GPIO) Output(pin int, listen *EventListeners) (err error) {
 }
 
 func (g *GPIO) Input(pin int, pull sensor.Pull) {
-	go sensor.SensorFn(g.ctx, pin, pull, func(s bool) {
+	go sensor.SensorFunc(g.ctx, pin, pull, func(s bool) {
 		g.Set(pin, s)
 	})
 }
 
-func (g *GPIO) on(pin int, listen *EventListeners) error {
+func (g *GPIO) on(pin int, listen *EventListener) error {
 	if listen.Key == fmt.Sprint(pin) {
 		return fmt.Errorf("circular dependency: pin%[1]o can't depend on pin%[1]o", pin)
 	}

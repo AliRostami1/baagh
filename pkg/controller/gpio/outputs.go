@@ -7,7 +7,7 @@ import (
 )
 
 func (g *GPIO) OutputSync(pin int, key string) {
-	g.Output(pin, &EventListeners{
+	g.Output(pin, &EventListener{
 		Key: key,
 		Fn: func(p int, v bool) {
 			g.Set(p, v)
@@ -16,7 +16,7 @@ func (g *GPIO) OutputSync(pin int, key string) {
 }
 
 func (g *GPIO) OutputRSync(pin int, key string) {
-	g.Output(pin, &EventListeners{
+	g.Output(pin, &EventListener{
 		Key: key,
 		Fn: func(p int, v bool) {
 			if v {
@@ -33,7 +33,12 @@ func (g *GPIO) OutputAlarm(pin int, key string, delay time.Duration) (cancel fun
 		g.Set(pin, false)
 	})
 
-	g.Output(pin, &EventListeners{
+	go func() {
+		<-g.ctx.Done()
+		cancel()
+	}()
+
+	g.Output(pin, &EventListener{
 		Key: key,
 		Fn: func(p int, v bool) {
 			if v {
