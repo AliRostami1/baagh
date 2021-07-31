@@ -28,8 +28,8 @@ func (g *GPIO) OutputRSync(pin int, key string) {
 	})
 }
 
-func (g *GPIO) OutputAlarm(pin int, key string, delay time.Duration) {
-	clear := debounce.Debounce(delay, func() {
+func (g *GPIO) OutputAlarm(pin int, key string, delay time.Duration) (cancel func()) {
+	fn, cancel := debounce.Debounce(delay, func() {
 		g.Set(pin, false)
 	})
 
@@ -38,8 +38,9 @@ func (g *GPIO) OutputAlarm(pin int, key string, delay time.Duration) {
 		Fn: func(p int, v bool) {
 			if v {
 				g.Set(p, true)
-				clear()
+				fn()
 			}
 		},
 	})
+	return
 }
