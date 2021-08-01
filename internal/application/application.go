@@ -4,18 +4,16 @@ import (
 	"context"
 	"fmt"
 
-	"go.uber.org/zap"
-
 	"github.com/AliRostami1/baagh/pkg/config"
-	"github.com/AliRostami1/baagh/pkg/db"
+	"github.com/AliRostami1/baagh/pkg/database"
 	"github.com/AliRostami1/baagh/pkg/logger"
 	"github.com/AliRostami1/baagh/pkg/signal"
 )
 
 type Application struct {
-	Log      *zap.SugaredLogger
+	Log      *logger.Logger
 	Config   *config.Config
-	Db       *db.Db
+	Db       *database.DB
 	Ctx      context.Context
 	Shutdown func(string)
 }
@@ -51,7 +49,10 @@ func New() (*Application, error) {
 	signal.ShutdownHandler(shutdown)
 
 	// Connect to and Initialize a db instnace
-	db, err := db.New(ctx, config.GetString("redis_url"))
+	db, err := database.New(ctx, &database.Options{
+		Path:   "/var/lib/baagh/badger",
+		Logger: logger,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("couldn't connect to db: %v", err)
 	}

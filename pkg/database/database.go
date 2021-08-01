@@ -14,13 +14,13 @@ type DB struct {
 }
 
 type Options struct {
-	path   string
-	logger badger.Logger
+	Path   string
+	Logger badger.Logger
 }
 
 // TODO add our custom logger to this
 func New(ctx context.Context, opt *Options) (*DB, error) {
-	db, err := badger.Open(badger.DefaultOptions(opt.path).WithLogger(opt.logger))
+	db, err := badger.Open(badger.DefaultOptions(opt.Path).WithLogger(opt.Logger))
 	if err != nil {
 		return nil, err
 	}
