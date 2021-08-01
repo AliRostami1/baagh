@@ -8,7 +8,6 @@ import (
 	"github.com/stianeikeland/go-rpio/v4"
 
 	"github.com/AliRostami1/baagh/pkg/db"
-	"github.com/AliRostami1/baagh/pkg/sensor"
 )
 
 type GPIO struct {
@@ -17,82 +16,53 @@ type GPIO struct {
 	outputPins []rpio.Pin
 }
 
+type EventHandler func(pin int, val bool)
+type EventListener struct {
+	Key string
+	Fn  EventHandler
+}
+
 func New(ctx context.Context, db *db.Db) (*GPIO, error) {
 	if err := rpio.Open(); err != nil {
 		return nil, fmt.Errorf("can't open and memory map GPIO memory range from /dev/mem: %v", err)
 	}
-
 	gpio := &GPIO{
 		db:  db,
 		ctx: ctx,
 	}
 	go gpio.cleanup()
-
 	return gpio, nil
 }
 
-type EventHandler func(pin int, val bool)
-
-type EventListeners struct {
-	Key string
-	Fn  EventHandler
-}
-
-func (g *GPIO) RegisterOutputPin(pin int, listen *EventListeners) (err error) {
-	p := rpio.Pin(pin)
-	p.Output()
-	g.addOutputPins(p)
-	g.Set(pin, false)
-
-	err = g.On(pin, append([]*EventListeners{}, listen))
-
-	return err
-}
-
-func (g *GPIO) RegisterInputPin(pin int, pull sensor.Pull) {
-	go sensor.SensorFn(g.ctx, pin, pull, func(s bool) {
-		g.Set(pin, s)
-	})
-}
-
-func (g *GPIO) On(pin int, listen []*EventListeners) error {
-	for _, ev := range listen {
-		if ev.Key == fmt.Sprint(pin) {
-			return fmt.Errorf("circular dependency: pin%[1]o can't depend on pin%[1]o", pin)
-		}
-
-		g.db.On(ev.Key, func(key string, val *redis.StringCmd) error {
-			v, err := val.Bool()
-			if err != nil {
-				return fmt.Errorf("can't sync ")
-			}
-			ev.Fn(pin, v)
-			return nil
-		})
+func (g *GPIO) on(pin int, listen *EventListener) error {
+	if listen.Key == fmt.Sprint(pin) {
+		return fmt.Errorf("circular dependency: pin%[1]o can't depend on pin%[1]o", pin)
 	}
+
+	g.db.On(listen.Key, func(key string, val *redis.StringCmd) error {
+		v, err := val.Bool()
+		if err != nil {
+			return fmt.Errorf("can't sync ")
+		}
+		listen.Fn(pin, v)
+		return nil
+	})
+
 	return nil
 }
 
-func (g *GPIO) Sync(pin int, val bool) {
-	g.Set(pin, val)
-}
-
-func (g *GPIO) ReverseSync(pin int, val bool) {
-	if val {
-		g.Set(pin, false)
-	} else {
-		g.Set(pin, true)
-	}
-}
-
-func (g *GPIO) Set(pin int, val bool) {
+func (g *GPIO) Set(pin int, val bool) error {
 	p := rpio.Pin(pin)
-	g.db.Set(fmt.Sprint(pin), val, 0)
+
+	if _, err := g.db.Set(fmt.Sprint(pin), val, 0); err != nil {
+		return err
+	}
 	if val {
 		p.Write(rpio.High)
 	} else {
 		p.Write(rpio.Low)
 	}
+	return nil
 }
 
 func (g *GPIO) cleanup() {

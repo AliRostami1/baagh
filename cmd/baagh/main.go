@@ -2,7 +2,7 @@ package main
 
 import (
 	"log"
-	"os"
+	"time"
 
 	"github.com/AliRostami1/baagh/internal/application"
 	"github.com/AliRostami1/baagh/pkg/controller/gpio"
@@ -18,20 +18,18 @@ func main() {
 	// initialize rpio package and allocate memory
 	gpioController, err := gpio.New(app.Ctx, app.Db)
 	if err != nil {
-		app.Log.Errorf("there was a problem initiating the gpio controller: %v", err)
+		app.Log.Fatalf("there was a problem initiating the gpio controller: %v", err)
 	}
 
-	gpioController.RegisterOutputPin(10, &gpio.EventListeners{
-		Key: "9",
-		Fn:  gpioController.Sync,
-	})
+	if _, err := gpioController.OutputAlarm(10, "9", 7*time.Second); err != nil {
+		app.Log.Fatalf("there was a problem with the gpio controller: %v", err)
+	}
 
-	gpioController.RegisterInputPin(9, sensor.PullDown)
-
-	// go sensor.SensorFn(9, func(s bool) {
-	// 	app.Log.Info(s)
-	// })
+	errch := gpioController.Input(9, sensor.PullDown)
+	go func() {
+		err := <-errch
+		app.Log.Fatalf("there was a problem with the gpio controller: %v", err)
+	}()
 
 	<-app.Ctx.Done()
-	os.Exit(0)
 }

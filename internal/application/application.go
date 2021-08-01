@@ -55,7 +55,6 @@ func New() (*Application, error) {
 	if err != nil {
 		return nil, fmt.Errorf("couldn't connect to db: %v", err)
 	}
-	logger.Info("successfully connected to db")
 
 	return &Application{
 		Log:      logger,

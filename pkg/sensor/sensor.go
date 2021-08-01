@@ -2,6 +2,7 @@ package sensor
 
 import (
 	"context"
+	"time"
 
 	"github.com/stianeikeland/go-rpio/v4"
 )
@@ -16,7 +17,7 @@ const (
 	PullUp
 )
 
-func SensorFn(ctx context.Context, pin int, pull Pull, fn SensorCallback) {
+func SensorFunc(ctx context.Context, pin int, pull Pull, fn SensorCallback) {
 	ch := make(chan bool)
 	go Sensor(ctx, pin, pull, ch)
 	for {
@@ -37,6 +38,8 @@ func Sensor(ctx context.Context, pin int, pull Pull, ch chan<- bool) {
 	prevState := false
 infinite:
 	for {
+
+		time.Sleep(500 * time.Millisecond)
 		select {
 		case _, ok := <-ctx.Done():
 			if !ok {
