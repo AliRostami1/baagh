@@ -1,17 +1,20 @@
 package gpio
 
+// TODO functions SET and GET should return an struct containing
+// functions for adding eventlisteners and fields like pin number,
+// name and stuff.
+
 import (
 	"context"
 	"fmt"
 
-	"github.com/go-redis/redis/v8"
 	"github.com/stianeikeland/go-rpio/v4"
 
-	"github.com/AliRostami1/baagh/pkg/db"
+	"github.com/AliRostami1/baagh/pkg/database"
 )
 
 type GPIO struct {
-	db         *db.Db
+	db         *database.DB
 	ctx        context.Context
 	outputPins []rpio.Pin
 }
@@ -22,7 +25,7 @@ type EventListener struct {
 	Fn  EventHandler
 }
 
-func New(ctx context.Context, db *db.Db) (*GPIO, error) {
+func New(ctx context.Context, db *database.DB) (*GPIO, error) {
 	if err := rpio.Open(); err != nil {
 		return nil, fmt.Errorf("can't open and memory map GPIO memory range from /dev/mem: %v", err)
 	}
@@ -39,8 +42,7 @@ func (g *GPIO) on(pin int, listen *EventListener) error {
 		return fmt.Errorf("circular dependency: pin%[1]o can't depend on pin%[1]o", pin)
 	}
 
-	g.db.On(listen.Key, func(key string, val *redis.StringCmd) error {
-		v, err := val.Bool()
+	g.db.On(listen.Key, func(key string, val string) error {
 		if err != nil {
 			return fmt.Errorf("can't sync ")
 		}
@@ -54,7 +56,7 @@ func (g *GPIO) on(pin int, listen *EventListener) error {
 func (g *GPIO) Set(pin int, val bool) error {
 	p := rpio.Pin(pin)
 
-	if _, err := g.db.Set(fmt.Sprint(pin), val, 0); err != nil {
+	if err := g.db.Set(fmt.Sprint(pin), val); err != nil {
 		return err
 	}
 	if val {

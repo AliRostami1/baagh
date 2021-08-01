@@ -16,7 +16,7 @@ func main() {
 	}
 
 	// initialize rpio package and allocate memory
-	gpioController, err := gpio.New(app.Ctx, app.Db)
+	gpioController, err := gpio.New(app.Ctx, app.DB)
 	if err != nil {
 		app.Log.Fatalf("there was a problem initiating the gpio controller: %v", err)
 	}

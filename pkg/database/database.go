@@ -6,7 +6,7 @@ import (
 	"github.com/dgraph-io/badger/v3"
 )
 
-type EventListener func(key string, value string)
+type EventListener func(key string, value string) error
 
 type DB struct {
 	*badger.DB
@@ -69,7 +69,10 @@ func (d *DB) Set(key string, value string) error {
 		return err
 	})
 	if isDifferent {
-		d.executeEvents(key, value)
+		err := d.executeEvents(key, value)
+		if err != nil {
+			return err
+		}
 	}
 	return err
 }
@@ -78,8 +81,12 @@ func (d *DB) On(key string, fn ...EventListener) {
 	d.eventListeners[key] = append(d.eventListeners[key], fn...)
 }
 
-func (d *DB) executeEvents(key string, value string) {
+func (d *DB) executeEvents(key string, value string) error {
 	for _, fn := range d.eventListeners[key] {
-		fn(key, value)
+		err := fn(key, value)
+		if err != nil {
+			return err
+		}
 	}
+	return nil
 }

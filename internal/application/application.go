@@ -13,7 +13,7 @@ import (
 type Application struct {
 	Log      *logger.Logger
 	Config   *config.Config
-	Db       *database.DB
+	DB       *database.DB
 	Ctx      context.Context
 	Shutdown func(string)
 }
@@ -60,7 +60,7 @@ func New() (*Application, error) {
 	return &Application{
 		Log:      logger,
 		Config:   config,
-		Db:       db,
+		DB:       db,
 		Ctx:      ctx,
 		Shutdown: shutdown,
 	}, nil
