@@ -6,7 +6,7 @@ import (
 	"github.com/dgraph-io/badger/v3"
 )
 
-type EventListener func(key string, value string) error
+type EventListener func(key string, value string)
 
 type DB struct {
 	*badger.DB
@@ -18,7 +18,6 @@ type Options struct {
 	Logger badger.Logger
 }
 
-// TODO add our custom logger to this
 func New(ctx context.Context, opt *Options) (*DB, error) {
 	db, err := badger.Open(badger.DefaultOptions(opt.Path).WithLogger(opt.Logger))
 	if err != nil {
@@ -68,25 +67,21 @@ func (d *DB) Set(key string, value string) error {
 		}
 		return err
 	})
-	if isDifferent {
-		err := d.executeEvents(key, value)
-		if err != nil {
-			return err
-		}
+	if err != nil {
+		return err
 	}
-	return err
+	if isDifferent {
+		go d.executeEvents(key, value)
+	}
+	return nil
 }
 
 func (d *DB) On(key string, fn ...EventListener) {
 	d.eventListeners[key] = append(d.eventListeners[key], fn...)
 }
 
-func (d *DB) executeEvents(key string, value string) error {
+func (d *DB) executeEvents(key string, value string) {
 	for _, fn := range d.eventListeners[key] {
-		err := fn(key, value)
-		if err != nil {
-			return err
-		}
+		fn(key, value)
 	}
-	return nil
 }
