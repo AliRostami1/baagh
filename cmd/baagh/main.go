@@ -5,8 +5,8 @@ import (
 	"time"
 
 	"github.com/AliRostami1/baagh/internal/application"
-	"github.com/AliRostami1/baagh/pkg/controller/gpio"
-	"github.com/AliRostami1/baagh/pkg/sensor"
+	"github.com/AliRostami1/baagh/pkg/controller/gpio/sensor"
+	"github.com/AliRostami1/baagh/pkg/controller/gpio/state"
 )
 
 func main() {
@@ -17,7 +17,7 @@ func main() {
 	defer app.Cleanup()
 
 	pirSensor := app.Gpio.Input(9, sensor.PullDown)
-	pirSensor.OnError(func(state gpio.State, err error) {
+	pirSensor.OnError(func(state state.State, err error) {
 		app.Log.Fatalf("there was a problem while initiating pir sensor: %v", err)
 	})
 
