@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 
 	"github.com/AliRostami1/baagh/pkg/config"
+	"github.com/AliRostami1/baagh/pkg/controller/gpio"
 	"github.com/AliRostami1/baagh/pkg/database"
 	"github.com/AliRostami1/baagh/pkg/logger"
 	"github.com/AliRostami1/baagh/pkg/signal"
@@ -17,6 +18,7 @@ type Application struct {
 	Log      *logger.Logger
 	Config   *config.Config
 	DB       *database.DB
+	Gpio     *gpio.GPIO
 	Ctx      context.Context
 	Path     string
 	Shutdown func(string)
@@ -68,8 +70,15 @@ func New() (*Application, error) {
 		return nil, fmt.Errorf("couldn't connect to db: %v", err)
 	}
 
+	// initialize rpio package and allocate memory
+	gpio, err := gpio.New(ctx, db)
+	if err != nil {
+		return nil, fmt.Errorf("there was a problem initiating the gpio controller: %v", err)
+	}
+
 	cleanup := func() error {
 		db.Close()
+		gpio.Cleanup()
 		return nil
 	}
 
@@ -77,6 +86,7 @@ func New() (*Application, error) {
 		Log:      logger,
 		Config:   config,
 		DB:       db,
+		Gpio:     gpio,
 		Ctx:      ctx,
 		Path:     path,
 		Shutdown: shutdown,

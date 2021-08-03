@@ -26,7 +26,6 @@ func New(ctx context.Context, db *database.DB) (*GPIO, error) {
 		ctx:             ctx,
 		registeredItems: make(map[string]*Item),
 	}
-	go gpio.cleanup()
 	return gpio, nil
 }
 
@@ -38,9 +37,8 @@ func (g *GPIO) GetItem(pin uint8) (*Item, error) {
 	return item, nil
 }
 
-func (g *GPIO) cleanup() {
+func (g *GPIO) Cleanup() {
 	defer rpio.Close()
-	<-g.ctx.Done()
 	for _, item := range g.registeredItems {
 		item.cleanup()
 	}
