@@ -21,15 +21,14 @@ func main() {
 		app.Log.Fatalf("there was a problem initiating the gpio controller: %v", err)
 	}
 
-	if _, err := gpioController.OutputAlarm(10, "9", 7*time.Second); err != nil {
+	pirSensor := gpioController.Input(9, sensor.PullDown)
+	pirSensor.OnErr = func(err error, state gpio.State) {
 		app.Log.Fatalf("there was a problem with the gpio controller: %v", err)
 	}
 
-	errch := gpioController.Input(9, sensor.PullDown)
-	go func() {
-		err := <-errch
+	if _, _, err := gpioController.OutputAlarm(10, pirSensor.Key(), 7*time.Second); err != nil {
 		app.Log.Fatalf("there was a problem with the gpio controller: %v", err)
-	}()
+	}
 
 	<-app.Ctx.Done()
 }

@@ -1,9 +1,5 @@
 package gpio
 
-// TODO functions SET and GET should return an struct containing
-// functions for adding eventlisteners and fields like pin number,
-// name and stuff.
-
 import (
 	"context"
 	"fmt"
@@ -14,73 +10,51 @@ import (
 )
 
 type GPIO struct {
-	db         *database.DB
-	ctx        context.Context
-	outputPins []rpio.Pin
+	db              *database.DB
+	ctx             context.Context
+	registeredItems map[string]*Item
 }
 
-type EventHandler func(pin int, val bool)
-type EventListener struct {
-	Key string
-	Fn  EventHandler
-}
+type EventHandler func(item *Item)
 
 func New(ctx context.Context, db *database.DB) (*GPIO, error) {
 	if err := rpio.Open(); err != nil {
 		return nil, fmt.Errorf("can't open and memory map GPIO memory range from /dev/mem: %v", err)
 	}
 	gpio := &GPIO{
-		db:  db,
-		ctx: ctx,
+		db:              db,
+		ctx:             ctx,
+		registeredItems: make(map[string]*Item),
 	}
 	go gpio.cleanup()
 	return gpio, nil
 }
 
-func (g *GPIO) on(pin int, listen *EventListener) error {
-	if listen.Key == fmt.Sprint(pin) {
-		return fmt.Errorf("circular dependency: pin%[1]o can't depend on pin%[1]o", pin)
+func (g *GPIO) GetItem(pin uint8) (*Item, error) {
+	item, exists := g.registeredItems[makeKey(pin)]
+	if !exists {
+		return nil, NoController{pin: pin, key: makeKey(pin)}
 	}
-
-	g.db.On(listen.Key, func(key string, val string) error {
-		if err != nil {
-			return fmt.Errorf("can't sync ")
-		}
-		listen.Fn(pin, v)
-		return nil
-	})
-
-	return nil
-}
-
-func (g *GPIO) Set(pin int, val bool) error {
-	p := rpio.Pin(pin)
-
-	if err := g.db.Set(fmt.Sprint(pin), val); err != nil {
-		return err
-	}
-	if val {
-		p.Write(rpio.High)
-	} else {
-		p.Write(rpio.Low)
-	}
-	return nil
+	return item, nil
 }
 
 func (g *GPIO) cleanup() {
 	defer rpio.Close()
 	<-g.ctx.Done()
-	for _, pin := range g.outputPins {
-		pin.Low()
+	for _, item := range g.registeredItems {
+		item.cleanup()
 	}
 }
 
-func (g *GPIO) addOutputPins(pin rpio.Pin) error {
-	for _, p := range g.outputPins {
-		if p == pin {
-			return fmt.Errorf("can't add 2 controllers for the same pin")
-		}
-	}
-	g.outputPins = append(g.outputPins, pin)
-	return nil
+type NoController struct {
+	pin uint8
+	key string
+}
+
+func (n NoController) Error() string {
+	return fmt.Sprintf("there is no controller with pin number: %o, and corresponding key: %s", n.pin, n.key)
+}
+
+func makeKey(pin uint8) string {
+	return fmt.Sprintf("pin_%o", pin)
 }
