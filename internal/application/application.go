@@ -20,6 +20,7 @@ type Application struct {
 	Ctx      context.Context
 	Path     string
 	Shutdown func(string)
+	Cleanup  func() error
 }
 
 func New() (*Application, error) {
@@ -67,6 +68,11 @@ func New() (*Application, error) {
 		return nil, fmt.Errorf("couldn't connect to db: %v", err)
 	}
 
+	cleanup := func() error {
+		db.Close()
+		return nil
+	}
+
 	return &Application{
 		Log:      logger,
 		Config:   config,
@@ -74,5 +80,6 @@ func New() (*Application, error) {
 		Ctx:      ctx,
 		Path:     path,
 		Shutdown: shutdown,
+		Cleanup:  cleanup,
 	}, nil
 }

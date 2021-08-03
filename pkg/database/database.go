@@ -23,10 +23,6 @@ func New(ctx context.Context, opt *Options) (*DB, error) {
 	if err != nil {
 		return nil, err
 	}
-	// go func() {
-	// 	defer db.Close()
-	// 	<-ctx.Done()
-	// }()
 	return &DB{
 		DB:             db,
 		eventListeners: make(map[string][]EventListener),
