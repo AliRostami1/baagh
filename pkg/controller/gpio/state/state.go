@@ -1,4 +1,4 @@
-package gpio
+package state
 
 import (
 	"fmt"
@@ -22,6 +22,15 @@ type InvalidStateError struct{}
 
 func (u InvalidStateError) Error() string {
 	return fmt.Sprintf("gpio state can't be any value other than %s=%o and %s=%o", HighStr, High, LowStr, Low)
+}
+
+func FromString(state string) (State, error) {
+	if state == HighStr {
+		return High, nil
+	} else if state == LowStr {
+		return Low, nil
+	}
+	return 255, InvalidStateError{}
 }
 
 func (s State) String() string {

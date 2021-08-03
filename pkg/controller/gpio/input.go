@@ -1,14 +1,15 @@
 package gpio
 
 import (
-	"sync"
 	"time"
 
-	"github.com/AliRostami1/baagh/pkg/sensor"
+	"github.com/AliRostami1/baagh/pkg/controller/gpio/mode"
+	"github.com/AliRostami1/baagh/pkg/controller/gpio/sensor"
+	"github.com/AliRostami1/baagh/pkg/controller/gpio/state"
 	"github.com/stianeikeland/go-rpio/v4"
 )
 
-type ErrorFunction func(state State, err error)
+type ErrorFunction func(state state.State, err error)
 
 type InputController struct {
 	*Item
@@ -17,7 +18,7 @@ type InputController struct {
 	errFn ErrorFunction
 }
 
-func (i *InputController) set(state State) error {
+func (i *InputController) set(state state.State) error {
 	err := state.Check()
 	if err != nil {
 		return err
@@ -25,7 +26,7 @@ func (i *InputController) set(state State) error {
 	i.mu.Lock()
 	defer i.mu.Unlock()
 
-	i.Item.data.State = state
+	i.Item.data.State = state.String()
 	err = i.Item.Commit()
 	return err
 }
@@ -36,16 +37,16 @@ func (i *InputController) OnError(errFn ErrorFunction) {
 
 func (g *GPIO) Input(pin uint8, pull sensor.Pull) *InputController {
 	input := InputController{
-		Item:   &Item{GPIO: g, data: defaultItemData(pin, Input), mu: &sync.RWMutex{}},
+		Item:   DefaultItem(g, pin, mode.Input, state.Low),
 		sensor: sensor.New(g.ctx, pin, &sensor.Options{Pull: pull, TickDuration: 500 * time.Millisecond}),
-		errFn: func(state State, err error) {
+		errFn: func(state state.State, err error) {
 		},
 	}
 	input.submitItem()
 
-	input.sensor.OnChange(func(state rpio.State) {
-		if err := input.set(State(state)); err != nil {
-			input.errFn(State(state), err)
+	input.sensor.OnChange(func(s rpio.State) {
+		if err := input.set(state.State(s)); err != nil {
+			input.errFn(state.State(s), err)
 		}
 	})
 

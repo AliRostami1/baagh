@@ -5,92 +5,94 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/AliRostami1/baagh/pkg/controller/gpio/mode"
+	"github.com/AliRostami1/baagh/pkg/controller/gpio/state"
 	"github.com/stianeikeland/go-rpio/v4"
 )
 
-type ItemData struct {
-	Pin   rpio.Pin `json:"pin"`
-	State State    `json:"state"`
-	Mode  Mode     `json:"mode"`
-
-	Key         string `json:"key"`
+type Optional struct {
 	Name        string `json:"name"`
 	Description string `json:"description"`
 }
 
+type ItemData struct {
+	Pin   rpio.Pin `json:"pin"`
+	State string   `json:"state"`
+	Mode  string   `json:"mode"`
+	Optional
+}
+
 type Item struct {
 	*GPIO
+
+	key  string
 	data *ItemData
 	mu   *sync.RWMutex
 }
 
-func (i *ItemData) withName(name string) *ItemData {
-	i.Name = name
-	return i
+func DefaultItem(g *GPIO, pin uint8, mode mode.Mode, state state.State) *Item {
+	return &Item{
+		GPIO: g,
+		key:  makeKey(pin),
+		data: &ItemData{
+			Pin:      rpio.Pin(pin),
+			State:    state.String(),
+			Mode:     mode.String(),
+			Optional: Optional{},
+		},
+		mu: &sync.RWMutex{},
+	}
 }
 
-func (i *ItemData) withDescription(description string) *ItemData {
-	i.Description = description
-	return i
+func (i *Item) SetMeta(opt Optional) {
+	i.data.Optional = opt
 }
 
-func (i *ItemData) marshal() (string, error) {
-	data, err := json.Marshal(i)
+func (i *Item) Marshal() (string, error) {
+	data, err := json.Marshal(i.data)
 	return string(data), err
 }
 
-func defaultItemData(pin uint8, mode Mode) *ItemData {
-	return &ItemData{
-		Pin:  rpio.Pin(pin),
-		Mode: mode,
-		Key:  makeKey(pin),
-	}
-}
-
 func (i *Item) Commit() error {
-	data, err := i.data.marshal()
+	data, err := i.Marshal()
 	if err != nil {
 		return err
 	}
-	err = i.db.Set(i.data.Key, data)
+	err = i.db.Set(i.key, data)
 	return err
 }
 
-func (i *Item) State() State {
+func (i *Item) State() state.State {
 	i.mu.Lock()
 	defer i.mu.Unlock()
-	return i.data.State
-}
-
-func (i *Item) Data() *ItemData {
-	i.mu.Lock()
-	defer i.mu.Unlock()
-	return i.data
+	state, _ := state.FromString(i.data.State)
+	return state
 }
 
 func (i *Item) Pin() uint8 {
 	return uint8(i.data.Pin)
 }
 
-func (i *Item) Mode() string {
-	return fmt.Sprint(i.data.Mode)
+func (i *Item) Mode() mode.Mode {
+	mode, _ := mode.FromString(i.data.Mode)
+	return mode
 }
 
 func (i *Item) Key() string {
-	return i.data.Key
+	return i.key
 }
 
 func (i *Item) cleanup() {
-	if i.data.Mode == Output {
+	if i.data.Mode == mode.OutputStr {
 		i.data.Pin.Low()
 	}
 }
 
 func (i *Item) submitItem() error {
-	if _, exists := i.GPIO.registeredItems[i.data.Key]; exists {
+	if _, exists := i.GPIO.registeredItems[i.key]; exists {
 		return &MultipleController{pin: uint8(i.data.Pin)}
 	}
-	i.GPIO.registeredItems[i.data.Key] = i
+	i.GPIO.registeredItems[i.key] = i
 	return nil
 }
 

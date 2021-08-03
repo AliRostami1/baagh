@@ -1,9 +1,10 @@
 package gpio
 
 import (
-	"sync"
 	"time"
 
+	"github.com/AliRostami1/baagh/pkg/controller/gpio/mode"
+	"github.com/AliRostami1/baagh/pkg/controller/gpio/state"
 	"github.com/AliRostami1/baagh/pkg/debounce"
 	"github.com/stianeikeland/go-rpio/v4"
 )
@@ -12,7 +13,7 @@ type OutputController struct {
 	*Item
 }
 
-func (o *OutputController) Set(state State) error {
+func (o *OutputController) Set(state state.State) error {
 	err := state.Check()
 	if err != nil {
 		return err
@@ -21,7 +22,7 @@ func (o *OutputController) Set(state State) error {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 
-	o.Item.data.State = state
+	o.Item.data.State = state.String()
 	err = o.Item.Commit()
 	if err != nil {
 		return err
@@ -33,15 +34,15 @@ func (o *OutputController) Set(state State) error {
 }
 
 func (o *OutputController) SetHigh() {
-	o.Set(High)
+	o.Set(state.High)
 }
 
 func (o *OutputController) SetLow() {
-	o.Set(Low)
+	o.Set(state.Low)
 }
 
 func (o *OutputController) On(key string, fns ...EventHandler) error {
-	if key == o.data.Key {
+	if key == o.key {
 		return CircularDependency{pin: o.Pin()}
 	}
 
@@ -56,17 +57,21 @@ func (o *OutputController) On(key string, fns ...EventHandler) error {
 	return nil
 }
 
-func (o *OutputController) OnItem(item *Item, fns ...EventHandler) {
-	o.On(item.data.Key, fns...)
+func (o *OutputController) OnItem(item *Item, fns ...EventHandler) error {
+	return o.On(item.key, fns...)
+}
+
+func (o *OutputController) OnPin(pin uint8, fns ...EventHandler) error {
+	item, err := o.GPIO.GetItem(pin)
+	if err != nil {
+		return err
+	}
+	return o.OnItem(item, fns...)
 }
 
 func (g *GPIO) Output(pin uint8) (*OutputController, error) {
 	output := OutputController{
-		Item: &Item{
-			GPIO: g,
-			data: defaultItemData(pin, Output),
-			mu:   &sync.RWMutex{},
-		},
+		Item: DefaultItem(g, pin, mode.Output, state.Low),
 	}
 	output.data.Pin.Output()
 	err := output.submitItem()
@@ -74,7 +79,7 @@ func (g *GPIO) Output(pin uint8) (*OutputController, error) {
 		return nil, err
 	}
 
-	err = output.Set(Low)
+	err = output.Set(state.Low)
 	if err != nil {
 		return nil, err
 	}
@@ -101,10 +106,10 @@ func (g *GPIO) OutputRSync(pin uint8, key string) (*OutputController, error) {
 		return nil, err
 	}
 	err = output.On(key, func(item *Item) {
-		if item.State() == High {
-			output.Set(Low)
+		if item.State() == state.High {
+			output.Set(state.Low)
 		} else {
-			output.Set(High)
+			output.Set(state.High)
 		}
 	})
 	if err != nil {
@@ -119,7 +124,7 @@ func (g *GPIO) OutputAlarm(pin uint8, key string, delay time.Duration) (*OutputC
 		return nil, nil, err
 	}
 	fn, cancel := debounce.Debounce(delay, func() {
-		output.Set(Low)
+		output.Set(state.Low)
 	})
 
 	go func() {
@@ -128,8 +133,8 @@ func (g *GPIO) OutputAlarm(pin uint8, key string, delay time.Duration) (*OutputC
 	}()
 
 	err = output.On(key, func(item *Item) {
-		if item.State() == High {
-			output.Set(High)
+		if item.State() == state.High {
+			output.Set(state.High)
 			fn()
 		}
 	})
@@ -137,5 +142,4 @@ func (g *GPIO) OutputAlarm(pin uint8, key string, delay time.Duration) (*OutputC
 		return nil, nil, err
 	}
 	return output, cancel, nil
-
 }

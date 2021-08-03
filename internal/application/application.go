@@ -77,9 +77,9 @@ func New() (*Application, error) {
 	}
 
 	cleanup := func() error {
-		db.Close()
-		gpio.Cleanup()
-		return nil
+		defer gpio.Cleanup()
+		err := db.Close()
+		return err
 	}
 
 	return &Application{

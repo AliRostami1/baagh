@@ -1,4 +1,4 @@
-package gpio
+package mode
 
 import (
 	"fmt"
@@ -28,6 +28,15 @@ func (u InvalidModeError) Error() string {
 	return fmt.Sprintf("gpio mode can't be any value other than %s=%o and %s=%o", InputStr, Input, OutputStr, Output)
 }
 
+func FromString(mode string) (Mode, error) {
+	if mode == InputStr {
+		return Input, nil
+	} else if mode == OutputStr {
+		return Output, nil
+	}
+	return 255, InvalidModeError{}
+}
+
 func (m Mode) String() string {
 	if m == Input {
 		return InputStr
@@ -46,7 +55,6 @@ func (m Mode) Set(val string) error {
 		return nil
 	}
 	return InvalidModeError{}
-
 }
 
 func (m Mode) Check() error {
