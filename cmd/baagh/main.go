@@ -23,11 +23,12 @@ func main() {
 
 	pirSensor := gpioController.Input(9, sensor.PullDown)
 	pirSensor.OnErr = func(err error, state gpio.State) {
-		app.Log.Fatalf("there was a problem with the gpio controller: %v", err)
+		app.Log.Fatalf("there was a problem while initiating pir sensor: %v", err)
 	}
 
-	if _, _, err := gpioController.OutputAlarm(10, pirSensor.Key(), 7*time.Second); err != nil {
-		app.Log.Fatalf("there was a problem with the gpio controller: %v", err)
+	_, _, err = gpioController.OutputAlarm(10, pirSensor.Key(), 7*time.Second)
+	if err != nil {
+		app.Log.Fatalf("there was a problem while initiating led light: %v", err)
 	}
 
 	<-app.Ctx.Done()

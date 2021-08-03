@@ -34,6 +34,11 @@ func (i *ItemData) withDescription(description string) *ItemData {
 	return i
 }
 
+func (i *ItemData) marshal() (string, error) {
+	data, err := json.Marshal(i)
+	return string(data), err
+}
+
 func defaultItemData(pin uint8, mode Mode) *ItemData {
 	return &ItemData{
 		Pin:  rpio.Pin(pin),
@@ -43,11 +48,11 @@ func defaultItemData(pin uint8, mode Mode) *ItemData {
 }
 
 func (i *Item) Commit() error {
-	data, err := json.Marshal(i.data)
+	data, err := i.data.marshal()
 	if err != nil {
 		return err
 	}
-	err = i.db.Set(i.data.Key, string(data))
+	err = i.db.Set(i.data.Key, data)
 	return err
 }
 

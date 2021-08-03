@@ -3,6 +3,9 @@ package application
 import (
 	"context"
 	"fmt"
+	"log"
+	"os"
+	"path/filepath"
 
 	"github.com/AliRostami1/baagh/pkg/config"
 	"github.com/AliRostami1/baagh/pkg/database"
@@ -15,12 +18,28 @@ type Application struct {
 	Config   *config.Config
 	DB       *database.DB
 	Ctx      context.Context
+	Path     string
 	Shutdown func(string)
 }
 
 func New() (*Application, error) {
+	userHomeDir, err := os.UserHomeDir()
+	if err != nil {
+		return nil, err
+	}
+	path := userHomeDir + "/.baagh/"
+
+	// this is the application context, it will determine when the application will exit
+	ctx, cancelCtx := context.WithCancel(context.Background())
+
+	// calling shutdown will terminate the program
+	shutdown := func(reason string) {
+		log.Println(reason)
+		cancelCtx()
+	}
+
 	// get the logger
-	logger, err := logger.New()
+	logger, err := logger.New(shutdown)
 	if err != nil {
 		return nil, err
 	}
@@ -36,21 +55,12 @@ func New() (*Application, error) {
 		return nil, err
 	}
 
-	// this is the application context, it will determine when the application will exit
-	ctx, cancelCtx := context.WithCancel(context.Background())
-
-	// calling shutdown will terminate the program
-	shutdown := func(reason string) {
-		logger.Info(reason)
-		cancelCtx()
-	}
-
 	// here we are handling terminate signals
 	signal.ShutdownHandler(shutdown)
 
 	// Connect to and Initialize a db instnace
 	db, err := database.New(ctx, &database.Options{
-		Path:   "/var/lib/baagh/badger",
+		Path:   filepath.Join(path, "badger"),
 		Logger: logger,
 	})
 	if err != nil {
@@ -62,6 +72,7 @@ func New() (*Application, error) {
 		Config:   config,
 		DB:       db,
 		Ctx:      ctx,
+		Path:     path,
 		Shutdown: shutdown,
 	}, nil
 }

@@ -1,6 +1,7 @@
 package gpio
 
 import (
+	"sync"
 	"time"
 
 	"github.com/AliRostami1/baagh/pkg/debounce"
@@ -16,6 +17,7 @@ func (o *OutputController) Set(state State) error {
 	if err != nil {
 		return err
 	}
+
 	o.mu.Lock()
 	defer o.mu.Unlock()
 
@@ -63,6 +65,7 @@ func (g *GPIO) Output(pin uint8) (*OutputController, error) {
 		Item: &Item{
 			GPIO: g,
 			data: defaultItemData(pin, Output),
+			mu:   &sync.RWMutex{},
 		},
 	}
 	output.data.Pin.Output()
@@ -70,6 +73,7 @@ func (g *GPIO) Output(pin uint8) (*OutputController, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	err = output.Set(Low)
 	if err != nil {
 		return nil, err
@@ -82,9 +86,12 @@ func (g *GPIO) OutputSync(pin uint8, key string) (*OutputController, error) {
 	if err != nil {
 		return nil, err
 	}
-	output.On(key, func(item *Item) {
+	err = output.On(key, func(item *Item) {
 		output.Set(item.State())
 	})
+	if err != nil {
+		return nil, err
+	}
 	return output, nil
 }
 
@@ -93,13 +100,16 @@ func (g *GPIO) OutputRSync(pin uint8, key string) (*OutputController, error) {
 	if err != nil {
 		return nil, err
 	}
-	output.On(key, func(item *Item) {
+	err = output.On(key, func(item *Item) {
 		if item.State() == High {
 			output.Set(Low)
 		} else {
 			output.Set(High)
 		}
 	})
+	if err != nil {
+		return nil, err
+	}
 	return output, nil
 }
 
@@ -117,12 +127,15 @@ func (g *GPIO) OutputAlarm(pin uint8, key string, delay time.Duration) (*OutputC
 		cancel()
 	}()
 
-	output.On(key, func(item *Item) {
+	err = output.On(key, func(item *Item) {
 		if item.State() == High {
 			output.Set(High)
 			fn()
 		}
 	})
+	if err != nil {
+		return nil, nil, err
+	}
 	return output, cancel, nil
 
 }

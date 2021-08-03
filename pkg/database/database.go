@@ -23,10 +23,10 @@ func New(ctx context.Context, opt *Options) (*DB, error) {
 	if err != nil {
 		return nil, err
 	}
-	go func() {
-		defer db.Close()
-		<-ctx.Done()
-	}()
+	// go func() {
+	// 	defer db.Close()
+	// 	<-ctx.Done()
+	// }()
 	return &DB{
 		DB:             db,
 		eventListeners: make(map[string][]EventListener),
@@ -41,7 +41,7 @@ func (d *DB) Get(key string) (string, error) {
 			return err
 		}
 		item.Value(func(val []byte) error {
-			copy(value, val)
+			value = append([]byte{}, val...)
 			return nil
 		})
 		return err
@@ -50,22 +50,30 @@ func (d *DB) Get(key string) (string, error) {
 }
 
 func (d *DB) Set(key string, value string) error {
-	isDifferent := false
+	isDifferent := true
 	err := d.Update(func(txn *badger.Txn) error {
-		item, err := txn.Get([]byte(key))
-		if err != nil {
-			return err
-		}
-		item.Value(func(val []byte) error {
-			if string(val) != value {
-				isDifferent = true
+		item, getErr := txn.Get([]byte(key))
+		keyExists := true
+		if getErr != nil {
+			if getErr == badger.ErrKeyNotFound {
+				keyExists = false
+			} else {
+				return getErr
 			}
-			return nil
-		})
-		if isDifferent {
-			err = txn.Set([]byte(key), []byte(value))
 		}
-		return err
+		if keyExists {
+			item.Value(func(val []byte) error {
+				if string(val) == value {
+					isDifferent = false
+				}
+				return nil
+			})
+		}
+		var setErr error
+		if isDifferent {
+			setErr = txn.Set([]byte(key), []byte(value))
+		}
+		return setErr
 	})
 	if err != nil {
 		return err

@@ -1,6 +1,7 @@
 package gpio
 
 import (
+	"sync"
 	"time"
 
 	"github.com/AliRostami1/baagh/pkg/sensor"
@@ -29,7 +30,7 @@ func (i *InputController) set(state State) error {
 
 func (g *GPIO) Input(pin uint8, pull sensor.Pull) *InputController {
 	input := InputController{
-		Item:   &Item{GPIO: g, data: defaultItemData(pin, Input)},
+		Item:   &Item{GPIO: g, data: defaultItemData(pin, Input), mu: &sync.RWMutex{}},
 		Sensor: sensor.New(g.ctx, pin, &sensor.Options{Pull: pull, TickDuration: 500 * time.Millisecond}),
 		OnErr: func(err error, state State) {
 		},
@@ -41,5 +42,7 @@ func (g *GPIO) Input(pin uint8, pull sensor.Pull) *InputController {
 			input.OnErr(err, State(state))
 		}
 	})
+
+	input.Start()
 	return &input
 }
