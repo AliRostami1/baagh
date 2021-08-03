@@ -6,7 +6,7 @@ import (
 	"github.com/dgraph-io/badger/v3"
 )
 
-type EventListener func(key string, value string)
+type EventListener func(key, value string)
 
 type DB struct {
 	*badger.DB
@@ -36,7 +36,7 @@ func (d *DB) Get(key string) (string, error) {
 		if err != nil {
 			return err
 		}
-		item.Value(func(val []byte) error {
+		err = item.Value(func(val []byte) error {
 			value = append([]byte{}, val...)
 			return nil
 		})
