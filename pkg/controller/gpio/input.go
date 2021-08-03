@@ -8,11 +8,13 @@ import (
 	"github.com/stianeikeland/go-rpio/v4"
 )
 
+type ErrorFunction func(state State, err error)
+
 type InputController struct {
 	*Item
-	*sensor.Sensor
+	sensor *sensor.Sensor
 
-	OnErr func(err error, state State)
+	errFn ErrorFunction
 }
 
 func (i *InputController) set(state State) error {
@@ -28,21 +30,25 @@ func (i *InputController) set(state State) error {
 	return err
 }
 
+func (i *InputController) OnError(errFn ErrorFunction) {
+	i.errFn = errFn
+}
+
 func (g *GPIO) Input(pin uint8, pull sensor.Pull) *InputController {
 	input := InputController{
 		Item:   &Item{GPIO: g, data: defaultItemData(pin, Input), mu: &sync.RWMutex{}},
-		Sensor: sensor.New(g.ctx, pin, &sensor.Options{Pull: pull, TickDuration: 500 * time.Millisecond}),
-		OnErr: func(err error, state State) {
+		sensor: sensor.New(g.ctx, pin, &sensor.Options{Pull: pull, TickDuration: 500 * time.Millisecond}),
+		errFn: func(state State, err error) {
 		},
 	}
 	input.submitItem()
 
-	input.Sensor.OnChange(func(state rpio.State) {
+	input.sensor.OnChange(func(state rpio.State) {
 		if err := input.set(State(state)); err != nil {
-			input.OnErr(err, State(state))
+			input.errFn(State(state), err)
 		}
 	})
 
-	input.Start()
+	input.sensor.Start()
 	return &input
 }

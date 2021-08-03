@@ -17,9 +17,9 @@ func main() {
 	defer app.Cleanup()
 
 	pirSensor := app.Gpio.Input(9, sensor.PullDown)
-	pirSensor.OnErr = func(err error, state gpio.State) {
+	pirSensor.OnError(func(state gpio.State, err error) {
 		app.Log.Fatalf("there was a problem while initiating pir sensor: %v", err)
-	}
+	})
 
 	_, _, err = app.Gpio.OutputAlarm(10, pirSensor.Key(), 7*time.Second)
 	if err != nil {
