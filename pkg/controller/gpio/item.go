@@ -45,16 +45,20 @@ func DefaultItem(g *GPIO, pin uint8, mode mode.Mode, state state.State) *Item {
 }
 
 func (i *Item) SetMeta(opt Optional) {
+	i.mu.Lock()
+	defer i.mu.Unlock()
 	i.data.Optional = opt
 }
 
-func (i *Item) Marshal() (string, error) {
+func (i *Item) marshal() (string, error) {
 	data, err := json.Marshal(i.data)
 	return string(data), err
 }
 
 func (i *Item) Commit() error {
-	data, err := i.Marshal()
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	data, err := i.marshal()
 	if err != nil {
 		return err
 	}
@@ -69,31 +73,37 @@ func (i *Item) State() state.State {
 	return state
 }
 
+func (i *Item) SetState(state state.State) {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	i.data.State = state.String()
+}
+
 func (i *Item) Pin() uint8 {
+	i.mu.Lock()
+	defer i.mu.Unlock()
 	return uint8(i.data.Pin)
 }
 
 func (i *Item) Mode() mode.Mode {
+	i.mu.Lock()
+	defer i.mu.Unlock()
 	mode, _ := mode.FromString(i.data.Mode)
 	return mode
 }
 
 func (i *Item) Key() string {
+	i.mu.Lock()
+	defer i.mu.Unlock()
 	return i.key
 }
 
 func (i *Item) cleanup() {
+	i.mu.Lock()
+	defer i.mu.Unlock()
 	if i.data.Mode == mode.OutputStr {
 		i.data.Pin.Low()
 	}
-}
-
-func (i *Item) submitItem() error {
-	if _, exists := i.GPIO.registeredItems[i.key]; exists {
-		return &MultipleController{pin: uint8(i.data.Pin)}
-	}
-	i.GPIO.registeredItems[i.key] = i
-	return nil
 }
 
 type CircularDependency struct {

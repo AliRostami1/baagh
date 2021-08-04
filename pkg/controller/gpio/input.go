@@ -23,10 +23,8 @@ func (i *InputController) set(state state.State) error {
 	if err != nil {
 		return err
 	}
-	i.mu.Lock()
-	defer i.mu.Unlock()
 
-	i.Item.data.State = state.String()
+	i.SetState(state)
 	err = i.Item.Commit()
 	return err
 }
@@ -42,7 +40,7 @@ func (g *GPIO) Input(pin uint8, pull sensor.Pull) *InputController {
 		errFn: func(state state.State, err error) {
 		},
 	}
-	input.submitItem()
+	g.addItem(pin, input.Item)
 
 	input.sensor.OnChange(func(s rpio.State) {
 		if err := input.set(state.State(s)); err != nil {
@@ -51,5 +49,6 @@ func (g *GPIO) Input(pin uint8, pull sensor.Pull) *InputController {
 	})
 
 	input.sensor.Start()
+
 	return &input
 }

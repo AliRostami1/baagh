@@ -19,10 +19,7 @@ func (o *OutputController) Set(state state.State) error {
 		return err
 	}
 
-	o.mu.Lock()
-	defer o.mu.Unlock()
-
-	o.Item.data.State = state.String()
+	o.SetState(state)
 	err = o.Item.Commit()
 	if err != nil {
 		return err
@@ -48,9 +45,9 @@ func (o *OutputController) On(key string, fns ...EventHandler) error {
 
 	for _, fn := range fns {
 		o.db.On(key, func(key, value string) {
-			if item, ok := o.registeredItems[key]; ok {
+			o.ItemRegistery.forEach(func(item *Item) {
 				fn(item)
-			}
+			})
 		})
 	}
 
@@ -62,7 +59,7 @@ func (o *OutputController) OnItem(item *Item, fns ...EventHandler) error {
 }
 
 func (o *OutputController) OnPin(pin uint8, fns ...EventHandler) error {
-	item, err := o.GPIO.GetItem(pin)
+	item, err := o.GPIO.getItem(pin)
 	if err != nil {
 		return err
 	}
@@ -74,7 +71,7 @@ func (g *GPIO) Output(pin uint8) (*OutputController, error) {
 		Item: DefaultItem(g, pin, mode.Output, state.Low),
 	}
 	output.data.Pin.Output()
-	err := output.submitItem()
+	err := g.addItem(pin, output.Item)
 	if err != nil {
 		return nil, err
 	}
@@ -118,19 +115,14 @@ func (g *GPIO) OutputRSync(pin uint8, key string) (*OutputController, error) {
 	return output, nil
 }
 
-func (g *GPIO) OutputAlarm(pin uint8, key string, delay time.Duration) (*OutputController, func(), error) {
+func (g *GPIO) OutputAlarm(pin uint8, key string, delay time.Duration) (*OutputController, error) {
 	output, err := g.Output(pin)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-	fn, cancel := debounce.Debounce(delay, func() {
+	fn := debounce.Debounce(delay, func() {
 		output.Set(state.Low)
 	})
-
-	go func() {
-		<-g.ctx.Done()
-		cancel()
-	}()
 
 	err = output.On(key, func(item *Item) {
 		if item.State() == state.High {
@@ -139,7 +131,7 @@ func (g *GPIO) OutputAlarm(pin uint8, key string, delay time.Duration) (*OutputC
 		}
 	})
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-	return output, cancel, nil
+	return output, nil
 }

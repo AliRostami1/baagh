@@ -21,7 +21,7 @@ func main() {
 		app.Log.Fatalf("there was a problem while initiating pir sensor: %v", err)
 	})
 
-	_, _, err = app.Gpio.OutputAlarm(10, pirSensor.Key(), 7*time.Second)
+	_, err = app.Gpio.OutputAlarm(10, pirSensor.Key(), 7*time.Second)
 	if err != nil {
 		app.Log.Fatalf("there was a problem while initiating led light: %v", err)
 	}

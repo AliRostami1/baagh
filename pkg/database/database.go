@@ -6,11 +6,9 @@ import (
 	"github.com/dgraph-io/badger/v3"
 )
 
-type EventListener func(key, value string)
-
 type DB struct {
 	*badger.DB
-	eventListeners map[string][]EventListener
+	*EventRegistery
 }
 
 type Options struct {
@@ -25,7 +23,7 @@ func New(ctx context.Context, opt *Options) (*DB, error) {
 	}
 	return &DB{
 		DB:             db,
-		eventListeners: make(map[string][]EventListener),
+		EventRegistery: DefaultEventRegistry(),
 	}, nil
 }
 
@@ -80,12 +78,12 @@ func (d *DB) Set(key string, value string) error {
 	return nil
 }
 
-func (d *DB) On(key string, fn ...EventListener) {
-	d.eventListeners[key] = append(d.eventListeners[key], fn...)
+func (d *DB) On(key string, fn ...EventHandler) {
+	d.addEvent(key, fn...)
 }
 
 func (d *DB) executeEvents(key string, value string) {
-	for _, fn := range d.eventListeners[key] {
+	d.forEach(key, func(fn EventHandler) {
 		fn(key, value)
-	}
+	})
 }

@@ -3,6 +3,7 @@ package gpio
 import (
 	"context"
 	"fmt"
+	"sync"
 
 	"github.com/stianeikeland/go-rpio/v4"
 
@@ -10,9 +11,10 @@ import (
 )
 
 type GPIO struct {
-	db              *database.DB
-	ctx             context.Context
-	registeredItems map[string]*Item
+	db  *database.DB
+	ctx context.Context
+
+	*ItemRegistery
 }
 
 type EventHandler func(item *Item)
@@ -22,35 +24,21 @@ func New(ctx context.Context, db *database.DB) (*GPIO, error) {
 		return nil, fmt.Errorf("can't open and memory map GPIO memory range from /dev/mem: %v", err)
 	}
 	gpio := &GPIO{
-		db:              db,
-		ctx:             ctx,
-		registeredItems: make(map[string]*Item),
+		db:  db,
+		ctx: ctx,
+		ItemRegistery: &ItemRegistery{
+			registry: make(map[string]*Item),
+			RWMutex:  &sync.RWMutex{},
+		},
 	}
 	return gpio, nil
 }
 
-func (g *GPIO) GetItem(pin uint8) (*Item, error) {
-	item, exists := g.registeredItems[makeKey(pin)]
-	if !exists {
-		return nil, NoController{pin: pin, key: makeKey(pin)}
-	}
-	return item, nil
-}
-
 func (g *GPIO) Cleanup() {
 	defer rpio.Close()
-	for _, item := range g.registeredItems {
+	g.ItemRegistery.forEach(func(item *Item) {
 		item.cleanup()
-	}
-}
-
-type NoController struct {
-	pin uint8
-	key string
-}
-
-func (n NoController) Error() string {
-	return fmt.Sprintf("there is no controller with pin number: %o, and corresponding key: %s", n.pin, n.key)
+	})
 }
 
 func makeKey(pin uint8) string {
