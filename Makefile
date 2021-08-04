@@ -15,6 +15,13 @@ EXECUTABLE ?= $(GOBIN)/$(PROJECTNAME)
 MAIN ?= $(GOBASE)/cmd/baagh
 
 
+ENV ?= env
+GOARCH ?= GOARCH
+GOOS ?= GOOS
+ALLENV ?= $(ENV) $(GOOS)=linux $(GOARCH)=arm64
+
+APPPATH ?= ~/.baagh/
+INSTALLPATH ?= ~/go/bin/
 
 # Make is verbose in Linux. Make it silent.
 MAKEFLAGS += --silent
@@ -24,15 +31,19 @@ MAKEFLAGS += --silent
 all: help
 
 ## build: Build the binary.
-build: 
+build:
 	echo "Compiling"
 	mkdir -p $(GOBIN)
-	env GOOS=linux GOARCH=arm64 $(GO) build -o $(EXECUTABLE) $(MAIN)
+	$(GO) build -o $(EXECUTABLE) $(MAIN)
 
-install: 
+install:
 	echo "Installing..."
-	$(GO) install -mod vendor $(MAIN)
+	$(GO) build -o $(INSTALLPATH)$(PROJECTNAME) $(MAIN)
 	echo "Installed."
+
+rinstall:
+	echo "Installing in race mode"
+	$(GO) build -race -o $(INSTALLPATH)$(PROJECTNAME).race $(MAIN)
 
 ## run: runs the application
 run: build
