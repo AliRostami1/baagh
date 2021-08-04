@@ -5,8 +5,8 @@ import (
 	"time"
 
 	"github.com/AliRostami1/baagh/internal/application"
-	"github.com/AliRostami1/baagh/pkg/controller/gpio"
-	"github.com/AliRostami1/baagh/pkg/sensor"
+	"github.com/AliRostami1/baagh/pkg/controller/gpio/sensor"
+	"github.com/AliRostami1/baagh/pkg/controller/gpio/state"
 )
 
 func main() {
@@ -14,22 +14,17 @@ func main() {
 	if err != nil {
 		log.Fatalf("there was a problem initiating the application: %v", err)
 	}
+	defer app.Cleanup()
 
-	// initialize rpio package and allocate memory
-	gpioController, err := gpio.New(app.Ctx, app.Db)
+	pirSensor := app.Gpio.Input(9, sensor.PullDown)
+	pirSensor.OnError(func(state state.State, err error) {
+		app.Log.Fatalf("there was a problem while initiating pir sensor: %v", err)
+	})
+
+	_, err = app.Gpio.OutputAlarm(10, pirSensor.Key(), 7*time.Second)
 	if err != nil {
-		app.Log.Fatalf("there was a problem initiating the gpio controller: %v", err)
+		app.Log.Fatalf("there was a problem while initiating led light: %v", err)
 	}
-
-	if _, err := gpioController.OutputAlarm(10, "9", 7*time.Second); err != nil {
-		app.Log.Fatalf("there was a problem with the gpio controller: %v", err)
-	}
-
-	errch := gpioController.Input(9, sensor.PullDown)
-	go func() {
-		err := <-errch
-		app.Log.Fatalf("there was a problem with the gpio controller: %v", err)
-	}()
 
 	<-app.Ctx.Done()
 }

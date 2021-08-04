@@ -27,7 +27,7 @@ all: help
 build: 
 	echo "Compiling"
 	mkdir -p $(GOBIN)
-	env GOOS=linux GOARCH=arm64 $(GO) build -mod vendor -o $(EXECUTABLE) $(MAIN)
+	env GOOS=linux GOARCH=arm64 $(GO) build -o $(EXECUTABLE) $(MAIN)
 
 install: 
 	echo "Installing..."
@@ -39,6 +39,19 @@ run: build
 	echo "Running"
 	$(EXECUTABLE)
 
+build-race:
+	echo "Compiling in race mode"
+	mkdir -p $(GOBIN)
+	env GOOS=linux GOARCH=arm64 $(GO) build -race -v -o $(EXECUTABLE).race $(MAIN)
+
+run-race: build-race
+	echo "Running in race mode"
+	$(EXECUTABLE).race
+
+install-race:	
+	echo "Installing in race mode..."
+	$(GO) install -mod vendor $(MAIN)
+	echo "Installed."
 ## clean: Remove build related files.
 clean: 
 	rm -fr ./out

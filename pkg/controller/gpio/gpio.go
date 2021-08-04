@@ -3,82 +3,44 @@ package gpio
 import (
 	"context"
 	"fmt"
+	"sync"
 
-	"github.com/go-redis/redis/v8"
 	"github.com/stianeikeland/go-rpio/v4"
 
-	"github.com/AliRostami1/baagh/pkg/db"
+	"github.com/AliRostami1/baagh/pkg/database"
 )
 
 type GPIO struct {
-	db         *db.Db
-	ctx        context.Context
-	outputPins []rpio.Pin
+	db  *database.DB
+	ctx context.Context
+
+	*ItemRegistery
 }
 
-type EventHandler func(pin int, val bool)
-type EventListener struct {
-	Key string
-	Fn  EventHandler
-}
+type EventHandler func(item *Item)
 
-func New(ctx context.Context, db *db.Db) (*GPIO, error) {
+func New(ctx context.Context, db *database.DB) (*GPIO, error) {
 	if err := rpio.Open(); err != nil {
 		return nil, fmt.Errorf("can't open and memory map GPIO memory range from /dev/mem: %v", err)
 	}
 	gpio := &GPIO{
 		db:  db,
 		ctx: ctx,
+		ItemRegistery: &ItemRegistery{
+			registry: make(map[string]*Item),
+			RWMutex:  &sync.RWMutex{},
+		},
 	}
-	go gpio.cleanup()
 	return gpio, nil
 }
 
-func (g *GPIO) on(pin int, listen *EventListener) error {
-	if listen.Key == fmt.Sprint(pin) {
-		return fmt.Errorf("circular dependency: pin%[1]o can't depend on pin%[1]o", pin)
-	}
-
-	g.db.On(listen.Key, func(key string, val *redis.StringCmd) error {
-		v, err := val.Bool()
-		if err != nil {
-			return fmt.Errorf("can't sync ")
-		}
-		listen.Fn(pin, v)
-		return nil
-	})
-
-	return nil
-}
-
-func (g *GPIO) Set(pin int, val bool) error {
-	p := rpio.Pin(pin)
-
-	if _, err := g.db.Set(fmt.Sprint(pin), val, 0); err != nil {
-		return err
-	}
-	if val {
-		p.Write(rpio.High)
-	} else {
-		p.Write(rpio.Low)
-	}
-	return nil
-}
-
-func (g *GPIO) cleanup() {
+func (g *GPIO) Cleanup() {
 	defer rpio.Close()
-	<-g.ctx.Done()
-	for _, pin := range g.outputPins {
-		pin.Low()
-	}
+	g.ItemRegistery.forEach(func(item *Item) {
+		item.cleanup()
+	})
 }
 
-func (g *GPIO) addOutputPins(pin rpio.Pin) error {
-	for _, p := range g.outputPins {
-		if p == pin {
-			return fmt.Errorf("can't add 2 controllers for the same pin")
-		}
-	}
-	g.outputPins = append(g.outputPins, pin)
-	return nil
+func makeKey(pin uint8) string {
+	return fmt.Sprintf("pin_%o", pin)
 }

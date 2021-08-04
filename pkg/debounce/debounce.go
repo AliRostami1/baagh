@@ -4,16 +4,13 @@ import (
 	"time"
 )
 
-func Debounce(interval time.Duration, cb func()) (debouncedfn func(), cancel func()) {
+func Debounce(interval time.Duration, cb func()) func() {
 	ch := make(chan struct{})
 	timer := time.NewTimer(interval)
 	go func() {
 		for {
 			select {
-			case _, ok := <-ch:
-				if !ok {
-					return
-				}
+			case <-ch:
 				timer.Reset(interval)
 			case <-timer.C:
 				cb()
@@ -22,8 +19,6 @@ func Debounce(interval time.Duration, cb func()) (debouncedfn func(), cancel fun
 	}()
 
 	return func() {
-			ch <- struct{}{}
-		}, func() {
-			close(ch)
-		}
+		ch <- struct{}{}
+	}
 }

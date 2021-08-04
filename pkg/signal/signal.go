@@ -7,14 +7,14 @@ import (
 	"syscall"
 )
 
-func new() <-chan os.Signal {
+func New() <-chan os.Signal {
 	sigs := make(chan os.Signal, 1)
-	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+	signal.Notify(sigs, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
 	return sigs
 }
 
 func Handle(fn func(os.Signal)) {
-	sig := new()
+	sig := New()
 	for s := range sig {
 		fn(s)
 	}
