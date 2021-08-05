@@ -101,9 +101,8 @@ func (i *Item) Key() string {
 func (i *Item) cleanup() {
 	i.mu.Lock()
 	defer i.mu.Unlock()
-	if i.data.Mode == mode.OutputStr {
-		i.data.Pin.Low()
-	}
+	i.data.Pin.Input()
+	i.data.Pin.PullOff()
 }
 
 type CircularDependency struct {
