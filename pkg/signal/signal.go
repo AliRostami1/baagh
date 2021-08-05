@@ -8,6 +8,7 @@ import (
 )
 
 func New() <-chan os.Signal {
+	// TODO use signal.NotifyContext instead
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
 	return sigs
