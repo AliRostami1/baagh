@@ -1,95 +1,110 @@
 package gpio
 
 import (
+	"fmt"
+	"sync"
 	"time"
 
-	"github.com/AliRostami1/baagh/pkg/controller/gpio/mode"
-	"github.com/AliRostami1/baagh/pkg/controller/gpio/state"
 	"github.com/AliRostami1/baagh/pkg/debounce"
-	"github.com/stianeikeland/go-rpio/v4"
+	"github.com/warthog618/gpiod"
 )
 
-type OutputController struct {
-	*Item
+type OutputObject struct {
+	*Object
 }
 
-func (o *OutputController) Set(state state.State) error {
-	err := state.Check()
-	if err != nil {
-		return err
-	}
-
-	o.SetState(state)
-	err = o.Item.Commit()
-	if err != nil {
-		return err
-	}
-
-	o.data.Pin.Write(rpio.State(state))
-
-	return nil
+type OutputOption struct {
+	Meta
 }
 
-func (o *OutputController) SetHigh() {
-	o.Set(state.High)
+type ObjectEvent struct {
+	Key, Value string
+	Object     *Object
 }
 
-func (o *OutputController) SetLow() {
-	o.Set(state.Low)
-}
+type EventHandler func(item *ObjectEvent)
 
-func (o *OutputController) On(key string, fns ...EventHandler) error {
+func (o *OutputObject) On(key string, fns ...EventHandler) error {
 	if key == o.key {
-		return CircularDependency{pin: o.Pin()}
+		return CircularDependency{key: o.key}
 	}
 
 	for _, fn := range fns {
-		o.db.On(key, func(key, value string) {
-			o.ItemRegistery.forEach(func(item *Item) {
-				fn(item)
+		o.Gpio.db.On(key, func(key, value string) {
+			fn(&ObjectEvent{
+				Key:    key,
+				Value:  value,
+				Object: o.Object,
 			})
+
 		})
 	}
 
 	return nil
 }
 
-func (o *OutputController) OnItem(item *Item, fns ...EventHandler) error {
-	return o.On(item.key, fns...)
+func (o *OutputObject) OnItem(object *Object, fns ...EventHandler) error {
+	return o.On(object.key, fns...)
 }
 
-func (o *OutputController) OnPin(pin uint8, fns ...EventHandler) error {
-	item, err := o.GPIO.getItem(pin)
+func (o *OutputObject) OnPin(pin int, fns ...EventHandler) error {
+	item, err := o.Gpio.getItem(pin)
 	if err != nil {
 		return err
 	}
 	return o.OnItem(item, fns...)
 }
 
-func (g *GPIO) Output(pin uint8) (*OutputController, error) {
-	output := OutputController{
-		Item: DefaultItem(g, pin, mode.Output, state.Low),
+func (g *Gpio) Output(pin int, opt OutputOption) (*OutputObject, error) {
+	outputPin, err := g.chip.RequestLine(pin, gpiod.AsOutput(int(INACTIVE)))
+	if err != nil {
+		return nil, fmt.Errorf("there was a problem with output controller: %v", err)
 	}
-	output.data.Pin.Output()
-	err := g.addItem(pin, output.Item)
+
+	outputInfo, err := outputPin.Info()
+	if err != nil {
+		return nil, fmt.Errorf("there was a problem with output controller: %v", err)
+	}
+
+	output := OutputObject{
+		Object: &Object{
+			Gpio: g,
+			Line: outputPin,
+			data: &ObjectData{
+				Info:  outputInfo,
+				State: 0,
+				Meta:  opt.Meta,
+			},
+			key: makeKey(pin),
+			mu:  &sync.RWMutex{},
+		},
+	}
+
+	g.chip.WatchLineInfo(pin, func(lice gpiod.LineInfoChangeEvent) {
+		output.set(func(trx *ObjectTrx) error {
+			trx.SetInfo(lice.Info)
+			return nil
+		})
+	})
+
+	err = g.addItem(pin, output.Object)
 	if err != nil {
 		return nil, err
 	}
 
-	err = output.Set(state.Low)
-	if err != nil {
-		return nil, err
-	}
-	return &output, err
+	return &output, nil
 }
 
-func (g *GPIO) OutputSync(pin uint8, key string) (*OutputController, error) {
-	output, err := g.Output(pin)
+func (g *Gpio) OutputSync(pin int, key string, options OutputOption) (*OutputObject, error) {
+	output, err := g.Output(pin, options)
 	if err != nil {
 		return nil, err
 	}
-	err = output.On(key, func(item *Item) {
-		output.Set(item.State())
+	err = output.On(key, func(evt *ObjectEvent) {
+		evt.Object.set(func(trx *ObjectTrx) error {
+			trx.SetState(evt.Object.data.State ^ 1)
+			return nil
+		})
 	})
 	if err != nil {
 		return nil, err
@@ -97,17 +112,16 @@ func (g *GPIO) OutputSync(pin uint8, key string) (*OutputController, error) {
 	return output, nil
 }
 
-func (g *GPIO) OutputRSync(pin uint8, key string) (*OutputController, error) {
-	output, err := g.Output(pin)
+func (g *Gpio) OutputRSync(pin int, key string, options OutputOption) (*OutputObject, error) {
+	output, err := g.Output(pin, options)
 	if err != nil {
 		return nil, err
 	}
-	err = output.On(key, func(item *Item) {
-		if item.State() == state.High {
-			output.Set(state.Low)
-		} else {
-			output.Set(state.High)
-		}
+	err = output.On(key, func(evt *ObjectEvent) {
+		evt.Object.set(func(trx *ObjectTrx) error {
+			trx.SetState(evt.Object.data.State)
+			return nil
+		})
 	})
 	if err != nil {
 		return nil, err
@@ -115,20 +129,24 @@ func (g *GPIO) OutputRSync(pin uint8, key string) (*OutputController, error) {
 	return output, nil
 }
 
-func (g *GPIO) OutputAlarm(pin uint8, key string, delay time.Duration) (*OutputController, error) {
-	output, err := g.Output(pin)
+func (g *Gpio) OutputAlarm(pin int, key string, delay time.Duration, option OutputOption) (*OutputObject, error) {
+	output, err := g.Output(pin, option)
 	if err != nil {
 		return nil, err
 	}
 	fn := debounce.Debounce(delay, func() {
-		output.Set(state.Low)
+		output.set(func(trx *ObjectTrx) error {
+			trx.SetState(INACTIVE)
+			return nil
+		})
 	})
 
-	err = output.On(key, func(item *Item) {
-		if item.State() == state.High {
-			output.Set(state.High)
-			fn()
-		}
+	err = output.On(key, func(obj *ObjectEvent) {
+		output.set(func(trx *ObjectTrx) error {
+			trx.SetState(obj.Object.data.State)
+			return nil
+		})
+		fn()
 	})
 	if err != nil {
 		return nil, err

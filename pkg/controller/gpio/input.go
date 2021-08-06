@@ -1,54 +1,65 @@
 package gpio
 
 import (
-	"time"
+	"fmt"
+	"sync"
 
-	"github.com/AliRostami1/baagh/pkg/controller/gpio/mode"
-	"github.com/AliRostami1/baagh/pkg/controller/gpio/sensor"
-	"github.com/AliRostami1/baagh/pkg/controller/gpio/state"
-	"github.com/stianeikeland/go-rpio/v4"
+	"github.com/warthog618/gpiod"
 )
 
-type ErrorFunction func(state state.State, err error)
+type Pull int
 
-type InputController struct {
-	*Item
-	sensor *sensor.Sensor
-
-	errFn ErrorFunction
+type InputOption struct {
+	Meta
+	Pull gpiod.BiasOption
 }
 
-func (i *InputController) set(state state.State) error {
-	err := state.Check()
+type InputObject struct {
+	*Object
+}
+
+func (g *Gpio) Input(pin int, option InputOption) (*InputObject, error) {
+	inputPin, err := g.chip.RequestLine(pin, gpiod.AsInput, option.Pull)
 	if err != nil {
-		return err
+		return nil, fmt.Errorf("there was a problem with input controller: %v", err)
 	}
 
-	i.SetState(state)
-	err = i.Item.Commit()
-	return err
-}
+	inputInfo, err := inputPin.Info()
+	if err != nil {
+		return nil, err
+	}
 
-func (i *InputController) OnError(errFn ErrorFunction) {
-	i.errFn = errFn
-}
-
-func (g *GPIO) Input(pin uint8, pull sensor.Pull) *InputController {
-	input := InputController{
-		Item:   DefaultItem(g, pin, mode.Input, state.Low),
-		sensor: sensor.New(g.ctx, pin, &sensor.Options{Pull: pull, TickDuration: 500 * time.Millisecond}),
-		errFn: func(state state.State, err error) {
+	input := InputObject{
+		Object: &Object{
+			Gpio: g,
+			Line: inputPin,
+			data: &ObjectData{
+				Info:  inputInfo,
+				State: INACTIVE,
+				Meta:  Meta{},
+			},
+			key: makeKey(pin),
+			mu:  &sync.RWMutex{},
 		},
 	}
-	g.addItem(pin, input.Item)
 
-	input.sensor.OnChange(func(s rpio.State) {
-		if err := input.set(state.State(s)); err != nil {
-			input.errFn(state.State(s), err)
-		}
-	})
+	handler := func(evt gpiod.LineEvent) {
+		input.Object.set(func(trx *ObjectTrx) error {
+			if evt.Type == gpiod.LineEventRisingEdge {
+				trx.SetState(ACTIVE)
+				return nil
+			}
+			if evt.Type == gpiod.LineEventFallingEdge {
+				trx.SetState(INACTIVE)
+				return nil
+			}
+			return fmt.Errorf("THIS IS WROOONGGGG")
+		})
+	}
 
-	input.sensor.Start()
+	input.Reconfigure(gpiod.WithBothEdges, gpiod.WithEventHandler(handler))
 
-	return &input
+	g.addItem(pin, input.Object)
+
+	return &input, nil
 }

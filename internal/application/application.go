@@ -18,7 +18,7 @@ type Application struct {
 	Log      *logger.Logger
 	Config   *config.Config
 	DB       *database.DB
-	Gpio     *gpio.GPIO
+	Gpio     *gpio.Gpio
 	Ctx      context.Context
 	Path     string
 	Shutdown func(string)
@@ -71,7 +71,12 @@ func New() (*Application, error) {
 	}
 
 	// initialize rpio package and allocate memory
-	gpio, err := gpio.New(ctx, db)
+	gpio, err := gpio.New(gpio.GpioOption{
+		ChipName: "gpiochip0",
+		Ctx:      ctx,
+		DB:       db,
+		Consumer: "baagh",
+	})
 	if err != nil {
 		return nil, fmt.Errorf("there was a problem initiating the gpio controller: %v", err)
 	}

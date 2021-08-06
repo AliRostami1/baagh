@@ -5,118 +5,138 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/AliRostami1/baagh/pkg/controller/gpio/mode"
-	"github.com/AliRostami1/baagh/pkg/controller/gpio/state"
-	"github.com/stianeikeland/go-rpio/v4"
+	"github.com/warthog618/gpiod"
 )
 
-type Optional struct {
-	Name        string `json:"name"`
-	Description string `json:"description"`
+type ObjectTrx struct {
+	old      Object
+	new      Object
+	discard  bool
+	newState int
 }
 
-type ItemData struct {
-	Pin   rpio.Pin `json:"pin"`
-	State string   `json:"state"`
-	Mode  string   `json:"mode"`
-	Optional
+type Meta struct {
+	Name        string
+	Description string
 }
 
-type Item struct {
-	*GPIO
+type ObjectData struct {
+	Info  gpiod.LineInfo
+	State State
+	Meta  Meta
+}
 
+type Object struct {
+	Gpio *Gpio
+	*gpiod.Line
+	data *ObjectData
 	key  string
-	data *ItemData
 	mu   *sync.RWMutex
 }
 
-func DefaultItem(g *GPIO, pin uint8, mode mode.Mode, state state.State) *Item {
-	return &Item{
-		GPIO: g,
-		key:  makeKey(pin),
-		data: &ItemData{
-			Pin:      rpio.Pin(pin),
-			State:    state.String(),
-			Mode:     mode.String(),
-			Optional: Optional{},
-		},
-		mu: &sync.RWMutex{},
+func (o *Object) set(fn func(trx *ObjectTrx) error) error {
+	trx := &ObjectTrx{
+		old:      *o,
+		new:      *o,
+		discard:  false,
+		newState: -1,
 	}
-}
-
-func (i *Item) SetMeta(opt Optional) {
-	i.mu.Lock()
-	defer i.mu.Unlock()
-	i.data.Optional = opt
-}
-
-func (i *Item) marshal() (string, error) {
-	data, err := json.Marshal(i.data)
-	return string(data), err
-}
-
-func (i *Item) Commit() error {
-	i.mu.Lock()
-	defer i.mu.Unlock()
-	data, err := i.marshal()
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	err := fn(trx)
 	if err != nil {
 		return err
 	}
-	err = i.db.Set(i.key, data)
-	return err
+	if trx.discard != false {
+		if trx.newState != -1 {
+			err := o.SetValue(trx.newState)
+			if err != nil {
+				return err
+			}
+		}
+		o = &trx.new
+		err = o.commitToDB()
+		if err != nil {
+			o = &trx.old
+			return err
+		}
+	}
+	return nil
 }
 
-func (i *Item) State() state.State {
+func (o *ObjectTrx) Discard() {
+	o.discard = true
+}
+
+func (o *ObjectTrx) SetMeta(opt Meta) {
+	o.new.data.Meta = opt
+}
+
+func (o *ObjectTrx) SetState(state State) error {
+	if o.new.data.Info.Config.Direction == gpiod.LineDirectionOutput {
+		o.newState = int(state)
+	}
+	o.new.data.State = state
+	return nil
+}
+
+func (o *ObjectTrx) SetInfo(info gpiod.LineInfo) {
+	o.new.data.Info = info
+}
+
+func (o *ObjectTrx) Inactive() {
+	o.SetState(ACTIVE)
+}
+
+func (o *ObjectTrx) Active() {
+	o.SetState(INACTIVE)
+}
+
+func (i *Object) Data() ObjectData {
 	i.mu.Lock()
 	defer i.mu.Unlock()
-	state, _ := state.FromString(i.data.State)
-	return state
+	return *i.data
 }
 
-func (i *Item) SetState(state state.State) {
-	i.mu.Lock()
-	defer i.mu.Unlock()
-	i.data.State = state.String()
+func (i *Object) Marshal() (string, error) {
+	info := i.Data()
+	jsonInfo, err := json.Marshal(info)
+	if err != nil {
+		return "", err
+	}
+	return string(jsonInfo), nil
 }
 
-func (i *Item) Pin() uint8 {
-	i.mu.Lock()
-	defer i.mu.Unlock()
-	return uint8(i.data.Pin)
+func (i *Object) commitToDB() error {
+	data, err := i.Marshal()
+	if err != nil {
+		return err
+	}
+	err = i.Gpio.db.Set(i.key, data)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
-func (i *Item) Mode() mode.Mode {
-	i.mu.Lock()
-	defer i.mu.Unlock()
-	mode, _ := mode.FromString(i.data.Mode)
-	return mode
-}
-
-func (i *Item) Key() string {
+func (i *Object) Key() string {
 	i.mu.Lock()
 	defer i.mu.Unlock()
 	return i.key
 }
 
-func (i *Item) cleanup() {
-	i.mu.Lock()
-	defer i.mu.Unlock()
-	i.data.Pin.Input()
-	i.data.Pin.PullOff()
-}
-
 type CircularDependency struct {
-	pin uint8
+	key string
 }
 
 func (c CircularDependency) Error() string {
-	return fmt.Sprintf("circular dependency: %o can't depend on itself", c.pin)
+	return fmt.Sprintf("circular dependency: %s can't depend on itself", c.key)
 }
 
 type MultipleController struct {
-	pin uint8
+	key string
 }
 
 func (m MultipleController) Error() string {
-	return fmt.Sprintf("can't add 2 controllers for the same pin: %o", m.pin)
+	return fmt.Sprintf("can't add 2 controllers for the same pin: %s", m.key)
 }
