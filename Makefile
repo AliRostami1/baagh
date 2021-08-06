@@ -30,50 +30,49 @@ MAKEFLAGS += --silent
 
 all: help
 
+## install: Installs the binary
+install:
+	echo "Installing..."
+	$(GO) build -o $(INSTALLPATH)$(PROJECTNAME) $(MAIN)
+	echo "Installed."
+
+## rinstall: Installs the binary in race mode
+rinstall:
+	echo "Installing in race mode"
+	$(GO) build -race -o $(INSTALLPATH)$(PROJECTNAME).race $(MAIN)
+
 ## build: Build the binary.
 build:
 	echo "Compiling"
 	mkdir -p $(GOBIN)
 	$(GO) build -o $(EXECUTABLE) $(MAIN)
 
-install:
-	echo "Installing..."
-	$(GO) build -o $(INSTALLPATH)$(PROJECTNAME) $(MAIN)
-	echo "Installed."
-
-rinstall:
-	echo "Installing in race mode"
-	$(GO) build -race -o $(INSTALLPATH)$(PROJECTNAME).race $(MAIN)
-
-## run: runs the application
+## run: Runs the application
 run: build
 	echo "Running"
-	$(EXECUTABLE)
+	sudo $(EXECUTABLE)
 
-build-race:
+## rbuild: Builds the binary in race mode
+rbuild:
 	echo "Compiling in race mode"
 	mkdir -p $(GOBIN)
 	env GOOS=linux GOARCH=arm64 $(GO) build -race -v -o $(EXECUTABLE).race $(MAIN)
 
-run-race: build-race
+# rrun: Runs the binary in race mode
+rrun: rbuild
 	echo "Running in race mode"
-	$(EXECUTABLE).race
+	sudo $(EXECUTABLE).race
 
-install-race:	
-	echo "Installing in race mode..."
-	$(GO) install -mod vendor $(MAIN)
-	echo "Installed."
+## vendor: Run Go Vendor
+vendor: 
+	$(GO) mod vendor
+
 ## clean: Remove build related files.
 clean: 
 	rm -fr ./out
 
-## vendor: Copy of all packages needed to support builds and tests in the vendor directory
-vendor: 
-	$(GO) mod vendor
 
-## root: by running this, you can access 
-root:
-	sudo python3 $(GOBASE)/scripts/create_gpio_user_permissions.py
+
 
 help: Makefile
 	@echo
