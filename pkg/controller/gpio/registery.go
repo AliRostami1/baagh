@@ -5,19 +5,19 @@ import (
 	"sync"
 )
 
-type ItemRegistery struct {
-	registry map[string]*Item
+type ItemRegistry struct {
+	registry map[string]*Object
 	*sync.RWMutex
 }
 
-func DefaultItemRegistry() *ItemRegistery {
-	return &ItemRegistery{
-		registry: make(map[string]*Item),
+func DefaultItemRegistry() *ItemRegistry {
+	return &ItemRegistry{
+		registry: make(map[string]*Object),
 		RWMutex:  &sync.RWMutex{},
 	}
 }
 
-func (i *ItemRegistery) addItem(pin uint8, item *Item) error {
+func (i *ItemRegistry) addItem(pin int, item *Object) error {
 	i.Lock()
 	defer i.Unlock()
 
@@ -29,7 +29,7 @@ func (i *ItemRegistery) addItem(pin uint8, item *Item) error {
 	return nil
 }
 
-func (i *ItemRegistery) getItem(pin uint8) (*Item, error) {
+func (i *ItemRegistry) getItem(pin int) (*Object, error) {
 	i.Lock()
 	defer i.Unlock()
 
@@ -40,7 +40,18 @@ func (i *ItemRegistery) getItem(pin uint8) (*Item, error) {
 	return item, nil
 }
 
-func (i *ItemRegistery) forEach(fn func(item *Item)) {
+func (i *ItemRegistry) getKey(key string) (*Object, error) {
+	i.Lock()
+	defer i.Unlock()
+
+	item, exists := i.registry[key]
+	if !exists {
+		return nil, KeyNotFoundError{pin: -1, key: key}
+	}
+	return item, nil
+}
+
+func (i *ItemRegistry) forEach(fn func(item *Object)) {
 	i.Lock()
 	defer i.Unlock()
 	for _, item := range i.registry {
@@ -49,7 +60,7 @@ func (i *ItemRegistery) forEach(fn func(item *Item)) {
 }
 
 type AlreadyRegisteredError struct {
-	pin uint8
+	pin int
 }
 
 func (a *AlreadyRegisteredError) Error() string {
@@ -57,7 +68,7 @@ func (a *AlreadyRegisteredError) Error() string {
 }
 
 type KeyNotFoundError struct {
-	pin uint8
+	pin int
 	key string
 }
 

@@ -5,118 +5,117 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/AliRostami1/baagh/pkg/controller/gpio/mode"
-	"github.com/AliRostami1/baagh/pkg/controller/gpio/state"
-	"github.com/stianeikeland/go-rpio/v4"
+	"github.com/warthog618/gpiod"
 )
 
-type Optional struct {
-	Name        string `json:"name"`
-	Description string `json:"description"`
+type Meta struct {
+	Name        string
+	Description string
 }
 
-type ItemData struct {
-	Pin   rpio.Pin `json:"pin"`
-	State string   `json:"state"`
-	Mode  string   `json:"mode"`
-	Optional
+type ObjectData struct {
+	Info  gpiod.LineInfo
+	State State
+	Meta  Meta
 }
 
-type Item struct {
-	*GPIO
-
+type Object struct {
+	Gpio *Gpio
+	*gpiod.Line
+	data *ObjectData
 	key  string
-	data *ItemData
 	mu   *sync.RWMutex
 }
 
-func DefaultItem(g *GPIO, pin uint8, mode mode.Mode, state state.State) *Item {
-	return &Item{
-		GPIO: g,
-		key:  makeKey(pin),
-		data: &ItemData{
-			Pin:      rpio.Pin(pin),
-			State:    state.String(),
-			Mode:     mode.String(),
-			Optional: Optional{},
-		},
-		mu: &sync.RWMutex{},
-	}
-}
-
-func (i *Item) SetMeta(opt Optional) {
-	i.mu.Lock()
-	defer i.mu.Unlock()
-	i.data.Optional = opt
-}
-
-func (i *Item) marshal() (string, error) {
-	data, err := json.Marshal(i.data)
-	return string(data), err
-}
-
-func (i *Item) Commit() error {
-	i.mu.Lock()
-	defer i.mu.Unlock()
-	data, err := i.marshal()
+func (o *Object) set(fn func() error) error {
+	err := fn()
 	if err != nil {
 		return err
 	}
-	err = i.db.Set(i.key, data)
-	return err
+
+	data, err := o.Marshal()
+	if err != nil {
+		return err
+	}
+
+	err = o.commitToDB(data)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
-func (i *Item) State() state.State {
-	i.mu.Lock()
-	defer i.mu.Unlock()
-	state, _ := state.FromString(i.data.State)
-	return state
+func (o *Object) SetMeta(opt Meta) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.data.Meta = opt
 }
 
-func (i *Item) SetState(state state.State) {
-	i.mu.Lock()
-	defer i.mu.Unlock()
-	i.data.State = state.String()
+func (o *Object) setState(state State) error {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.data.State = state
+	return nil
 }
 
-func (i *Item) Pin() uint8 {
-	i.mu.Lock()
-	defer i.mu.Unlock()
-	return uint8(i.data.Pin)
+func (o *Object) setInfo(info gpiod.LineInfo) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.data.Info = info
 }
 
-func (i *Item) Mode() mode.Mode {
-	i.mu.Lock()
-	defer i.mu.Unlock()
-	mode, _ := mode.FromString(i.data.Mode)
-	return mode
+func (o *Object) Inactive() {
+	o.setState(ACTIVE)
 }
 
-func (i *Item) Key() string {
-	i.mu.Lock()
-	defer i.mu.Unlock()
-	return i.key
+func (o *Object) Active() {
+	o.setState(INACTIVE)
 }
 
-func (i *Item) cleanup() {
+func (i *Object) Data() ObjectData {
 	i.mu.Lock()
 	defer i.mu.Unlock()
-	i.data.Pin.Input()
-	i.data.Pin.PullOff()
+	return *i.data
+}
+
+func (o *Object) Marshal() (string, error) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	info := o.data
+	jsonInfo, err := json.Marshal(info)
+	if err != nil {
+		return "", err
+	}
+	return string(jsonInfo), nil
+}
+
+func (o *Object) commitToDB(data string) error {
+	err := o.Gpio.db.Set(o.key, data)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (o *Object) Key() string {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return o.key
 }
 
 type CircularDependency struct {
-	pin uint8
+	key string
 }
 
 func (c CircularDependency) Error() string {
-	return fmt.Sprintf("circular dependency: %o can't depend on itself", c.pin)
+	return fmt.Sprintf("circular dependency: %s can't depend on itself", c.key)
 }
 
 type MultipleController struct {
-	pin uint8
+	key string
 }
 
 func (m MultipleController) Error() string {
-	return fmt.Sprintf("can't add 2 controllers for the same pin: %o", m.pin)
+	return fmt.Sprintf("can't add 2 controllers for the same pin: %s", m.key)
 }

@@ -1,54 +1,68 @@
 package gpio
 
 import (
-	"time"
+	"fmt"
+	"sync"
 
-	"github.com/AliRostami1/baagh/pkg/controller/gpio/mode"
-	"github.com/AliRostami1/baagh/pkg/controller/gpio/sensor"
-	"github.com/AliRostami1/baagh/pkg/controller/gpio/state"
-	"github.com/stianeikeland/go-rpio/v4"
+	"github.com/warthog618/gpiod"
 )
 
-type ErrorFunction func(state state.State, err error)
+type Pull int
 
-type InputController struct {
-	*Item
-	sensor *sensor.Sensor
-
-	errFn ErrorFunction
+type InputOption struct {
+	Meta
+	Pull gpiod.BiasOption
 }
 
-func (i *InputController) set(state state.State) error {
-	err := state.Check()
-	if err != nil {
-		return err
-	}
-
-	i.SetState(state)
-	err = i.Item.Commit()
-	return err
+type InputObject struct {
+	*Object
 }
 
-func (i *InputController) OnError(errFn ErrorFunction) {
-	i.errFn = errFn
-}
-
-func (g *GPIO) Input(pin uint8, pull sensor.Pull) *InputController {
-	input := InputController{
-		Item:   DefaultItem(g, pin, mode.Input, state.Low),
-		sensor: sensor.New(g.ctx, pin, &sensor.Options{Pull: pull, TickDuration: 500 * time.Millisecond}),
-		errFn: func(state state.State, err error) {
+func (g *Gpio) Input(pin int, option InputOption) (*InputObject, error) {
+	input := InputObject{
+		Object: &Object{
+			Gpio: g,
+			Line: nil,
+			data: &ObjectData{
+				Info:  gpiod.LineInfo{},
+				State: INACTIVE,
+				Meta:  option.Meta,
+			},
+			key: makeKey(pin),
+			mu:  &sync.RWMutex{},
 		},
 	}
-	g.addItem(pin, input.Item)
+	input.mu.Lock()
+	defer input.mu.Unlock()
 
-	input.sensor.OnChange(func(s rpio.State) {
-		if err := input.set(state.State(s)); err != nil {
-			input.errFn(state.State(s), err)
-		}
-	})
+	handler := func(evt gpiod.LineEvent) {
+		input.Object.set(func() error {
+			if evt.Type == gpiod.LineEventRisingEdge {
+				input.setState(ACTIVE)
+				return nil
+			}
+			if evt.Type == gpiod.LineEventFallingEdge {
+				input.setState(INACTIVE)
+				return nil
+			}
+			return fmt.Errorf("THIS IS WROOONGGGG")
+		})
+	}
 
-	input.sensor.Start()
+	inputLine, err := g.chip.RequestLine(pin, gpiod.AsInput, gpiod.WithEventHandler(handler), gpiod.WithBothEdges)
+	if err != nil {
+		return nil, fmt.Errorf("there was a problem with input controller: %v", err)
+	}
 
-	return &input
+	inputInfo, err := inputLine.Info()
+	if err != nil {
+		return nil, err
+	}
+
+	input.Line = inputLine
+	input.data.Info = inputInfo
+
+	g.addItem(pin, input.Object)
+
+	return &input, nil
 }
