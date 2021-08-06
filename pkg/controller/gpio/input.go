@@ -2,6 +2,7 @@ package gpio
 
 import (
 	"fmt"
+	"log"
 	"sync"
 
 	"github.com/warthog618/gpiod"
@@ -34,6 +35,7 @@ func (g *Gpio) Input(pin int, option InputOption) (*InputObject, error) {
 	}
 
 	handler := func(evt gpiod.LineEvent) {
+		log.Println("movement detected")
 		input.Object.set(func(trx *ObjectTrx) error {
 			if evt.Type == gpiod.LineEventRisingEdge {
 				trx.SetState(ACTIVE)
@@ -47,7 +49,7 @@ func (g *Gpio) Input(pin int, option InputOption) (*InputObject, error) {
 		})
 	}
 
-	inputLine, err := g.chip.RequestLine(pin, gpiod.AsInput, option.Pull, gpiod.WithBothEdges, gpiod.WithEventHandler(handler))
+	inputLine, err := g.chip.RequestLine(pin, gpiod.AsInput, gpiod.WithEventHandler(handler), gpiod.WithBothEdges)
 	if err != nil {
 		return nil, fmt.Errorf("there was a problem with input controller: %v", err)
 	}

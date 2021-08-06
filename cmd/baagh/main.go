@@ -23,6 +23,9 @@ func main() {
 		},
 		Pull: gpiod.WithPullDown,
 	})
+	if err != nil {
+		app.Log.Fatalf("there was a problem while initiating pir sensor: %v", err)
+	}
 
 	_, err = app.Gpio.OutputAlarm(10, pirSensor.Key(), 7*time.Second, gpio.OutputOption{
 		Meta: gpio.Meta{

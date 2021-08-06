@@ -84,6 +84,9 @@ func New() (*Application, error) {
 	cleanup := func() error {
 		defer gpio.Cleanup()
 		err := db.Close()
+		if err != nil {
+			logger.Errorf("problem while closing the db: %v", err)
+		}
 		return err
 	}
 
