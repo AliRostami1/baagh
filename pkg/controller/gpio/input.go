@@ -2,7 +2,6 @@ package gpio
 
 import (
 	"fmt"
-	"log"
 	"sync"
 
 	"github.com/warthog618/gpiod"
@@ -27,7 +26,7 @@ func (g *Gpio) Input(pin int, option InputOption) (*InputObject, error) {
 			data: &ObjectData{
 				Info:  gpiod.LineInfo{},
 				State: INACTIVE,
-				Meta:  Meta{},
+				Meta:  option.Meta,
 			},
 			key: makeKey(pin),
 			mu:  &sync.RWMutex{},
@@ -35,7 +34,6 @@ func (g *Gpio) Input(pin int, option InputOption) (*InputObject, error) {
 	}
 
 	handler := func(evt gpiod.LineEvent) {
-		log.Println("movement detected")
 		input.Object.set(func(trx *ObjectTrx) error {
 			if evt.Type == gpiod.LineEventRisingEdge {
 				trx.SetState(ACTIVE)
@@ -47,6 +45,9 @@ func (g *Gpio) Input(pin int, option InputOption) (*InputObject, error) {
 			}
 			return fmt.Errorf("THIS IS WROOONGGGG")
 		})
+		// g.ItemRegistry.forEach(func(item *Object) {
+		// 	log.Println(item.Marshal())
+		// })
 	}
 
 	inputLine, err := g.chip.RequestLine(pin, gpiod.AsInput, gpiod.WithEventHandler(handler), gpiod.WithBothEdges)

@@ -22,7 +22,7 @@ type ObjectEvent struct {
 	Object     *Object
 }
 
-type EventHandler func(item *ObjectEvent)
+type EventHandler func(item *ObjectEvent) error
 
 func (o *OutputObject) On(key string, fns ...EventHandler) error {
 	if key == o.key {
@@ -31,10 +31,11 @@ func (o *OutputObject) On(key string, fns ...EventHandler) error {
 
 	for _, fn := range fns {
 		o.Gpio.db.On(key, func(key, value string) {
+			obj, _ := o.Gpio.ItemRegistry.getKey(key)
 			fn(&ObjectEvent{
 				Key:    key,
 				Value:  value,
-				Object: o.Object,
+				Object: obj,
 			})
 
 		})
@@ -100,11 +101,18 @@ func (g *Gpio) OutputSync(pin int, key string, options OutputOption) (*OutputObj
 	if err != nil {
 		return nil, err
 	}
-	err = output.On(key, func(evt *ObjectEvent) {
-		evt.Object.set(func(trx *ObjectTrx) error {
-			trx.SetState(evt.Object.data.State ^ 1)
+	err = output.On(key, func(evt *ObjectEvent) error {
+		err := evt.Object.set(func(trx *ObjectTrx) error {
+			err := trx.SetState(evt.Object.data.State ^ 1)
+			if err != nil {
+				return err
+			}
 			return nil
 		})
+		if err != nil {
+			return err
+		}
+		return nil
 	})
 	if err != nil {
 		return nil, err
@@ -117,11 +125,18 @@ func (g *Gpio) OutputRSync(pin int, key string, options OutputOption) (*OutputOb
 	if err != nil {
 		return nil, err
 	}
-	err = output.On(key, func(evt *ObjectEvent) {
-		evt.Object.set(func(trx *ObjectTrx) error {
-			trx.SetState(evt.Object.data.State)
+	err = output.On(key, func(evt *ObjectEvent) error {
+		err := evt.Object.set(func(trx *ObjectTrx) error {
+			err := trx.SetState(evt.Object.data.State)
+			if err != nil {
+				return err
+			}
 			return nil
 		})
+		if err != nil {
+			return err
+		}
+		return nil
 	})
 	if err != nil {
 		return nil, err
@@ -136,17 +151,29 @@ func (g *Gpio) OutputAlarm(pin int, key string, delay time.Duration, option Outp
 	}
 	fn := debounce.Debounce(delay, func() {
 		output.set(func(trx *ObjectTrx) error {
-			trx.SetState(INACTIVE)
+			err := trx.SetState(INACTIVE)
+			if err != nil {
+				return err
+			}
 			return nil
 		})
 	})
 
-	err = output.On(key, func(obj *ObjectEvent) {
-		output.set(func(trx *ObjectTrx) error {
-			trx.SetState(obj.Object.data.State)
+	err = output.On(key, func(obj *ObjectEvent) error {
+		err := output.set(func(trx *ObjectTrx) error {
+			if obj.Object.data.State == ACTIVE {
+				err := trx.SetState(ACTIVE)
+				if err != nil {
+					return err
+				}
+			}
 			return nil
 		})
+		if err != nil {
+			return err
+		}
 		fn()
+		return nil
 	})
 	if err != nil {
 		return nil, err

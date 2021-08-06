@@ -40,6 +40,17 @@ func (i *ItemRegistry) getItem(pin int) (*Object, error) {
 	return item, nil
 }
 
+func (i *ItemRegistry) getKey(key string) (*Object, error) {
+	i.Lock()
+	defer i.Unlock()
+
+	item, exists := i.registry[key]
+	if !exists {
+		return nil, KeyNotFoundError{pin: -1, key: key}
+	}
+	return item, nil
+}
+
 func (i *ItemRegistry) forEach(fn func(item *Object)) {
 	i.Lock()
 	defer i.Unlock()

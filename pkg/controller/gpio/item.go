@@ -57,7 +57,6 @@ func (o *Object) set(fn func(trx *ObjectTrx) error) error {
 		o = &trx.new
 		err = o.commitToDB()
 		if err != nil {
-			o = &trx.old
 			return err
 		}
 	}
@@ -99,7 +98,7 @@ func (i *Object) Data() ObjectData {
 }
 
 func (i *Object) Marshal() (string, error) {
-	info := i.Data()
+	info := i.data
 	jsonInfo, err := json.Marshal(info)
 	if err != nil {
 		return "", err
