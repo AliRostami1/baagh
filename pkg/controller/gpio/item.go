@@ -47,7 +47,7 @@ func (o *Object) set(fn func(trx *ObjectTrx) error) error {
 	if err != nil {
 		return err
 	}
-	if trx.discard != false {
+	if !trx.discard {
 		if trx.newState != -1 {
 			err := o.SetValue(trx.newState)
 			if err != nil {

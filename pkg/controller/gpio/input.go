@@ -19,22 +19,12 @@ type InputObject struct {
 }
 
 func (g *Gpio) Input(pin int, option InputOption) (*InputObject, error) {
-	inputPin, err := g.chip.RequestLine(pin, gpiod.AsInput, option.Pull)
-	if err != nil {
-		return nil, fmt.Errorf("there was a problem with input controller: %v", err)
-	}
-
-	inputInfo, err := inputPin.Info()
-	if err != nil {
-		return nil, err
-	}
-
 	input := InputObject{
 		Object: &Object{
 			Gpio: g,
-			Line: inputPin,
+			Line: nil,
 			data: &ObjectData{
-				Info:  inputInfo,
+				Info:  gpiod.LineInfo{},
 				State: INACTIVE,
 				Meta:  Meta{},
 			},
@@ -57,7 +47,18 @@ func (g *Gpio) Input(pin int, option InputOption) (*InputObject, error) {
 		})
 	}
 
-	input.Reconfigure(gpiod.WithBothEdges, gpiod.WithEventHandler(handler))
+	inputLine, err := g.chip.RequestLine(pin, gpiod.AsInput, option.Pull, gpiod.WithBothEdges, gpiod.WithEventHandler(handler))
+	if err != nil {
+		return nil, fmt.Errorf("there was a problem with input controller: %v", err)
+	}
+
+	inputInfo, err := inputLine.Info()
+	if err != nil {
+		return nil, err
+	}
+
+	input.Line = inputLine
+	input.data.Info = inputInfo
 
 	g.addItem(pin, input.Object)
 
