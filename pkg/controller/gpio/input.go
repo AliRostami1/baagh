@@ -32,22 +32,21 @@ func (g *Gpio) Input(pin int, option InputOption) (*InputObject, error) {
 			mu:  &sync.RWMutex{},
 		},
 	}
+	input.mu.Lock()
+	defer input.mu.Unlock()
 
 	handler := func(evt gpiod.LineEvent) {
-		input.Object.set(func(trx *ObjectTrx) error {
+		input.Object.set(func() error {
 			if evt.Type == gpiod.LineEventRisingEdge {
-				trx.SetState(ACTIVE)
+				input.setState(ACTIVE)
 				return nil
 			}
 			if evt.Type == gpiod.LineEventFallingEdge {
-				trx.SetState(INACTIVE)
+				input.setState(INACTIVE)
 				return nil
 			}
 			return fmt.Errorf("THIS IS WROOONGGGG")
 		})
-		// g.ItemRegistry.forEach(func(item *Object) {
-		// 	log.Println(item.Marshal())
-		// })
 	}
 
 	inputLine, err := g.chip.RequestLine(pin, gpiod.AsInput, gpiod.WithEventHandler(handler), gpiod.WithBothEdges)

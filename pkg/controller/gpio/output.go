@@ -82,8 +82,8 @@ func (g *Gpio) Output(pin int, opt OutputOption) (*OutputObject, error) {
 	}
 
 	g.chip.WatchLineInfo(pin, func(lice gpiod.LineInfoChangeEvent) {
-		output.set(func(trx *ObjectTrx) error {
-			trx.SetInfo(lice.Info)
+		output.set(func() error {
+			output.setInfo(lice.Info)
 			return nil
 		})
 	})
@@ -102,12 +102,12 @@ func (g *Gpio) OutputSync(pin int, key string, options OutputOption) (*OutputObj
 		return nil, err
 	}
 	err = output.On(key, func(evt *ObjectEvent) error {
-		err := evt.Object.set(func(trx *ObjectTrx) error {
-			err := trx.SetState(evt.Object.data.State ^ 1)
+		err := evt.Object.set(func() error {
+			err := output.setState(evt.Object.Data().State ^ 1)
 			if err != nil {
 				return err
 			}
-			return nil
+			return output.SetValue(int(evt.Object.Data().State) ^ 1)
 		})
 		if err != nil {
 			return err
@@ -126,12 +126,12 @@ func (g *Gpio) OutputRSync(pin int, key string, options OutputOption) (*OutputOb
 		return nil, err
 	}
 	err = output.On(key, func(evt *ObjectEvent) error {
-		err := evt.Object.set(func(trx *ObjectTrx) error {
-			err := trx.SetState(evt.Object.data.State)
+		err := evt.Object.set(func() error {
+			err := output.setState(evt.Object.Data().State)
 			if err != nil {
 				return err
 			}
-			return nil
+			return output.SetValue(int(evt.Object.Data().State))
 		})
 		if err != nil {
 			return err
@@ -150,22 +150,23 @@ func (g *Gpio) OutputAlarm(pin int, key string, delay time.Duration, option Outp
 		return nil, err
 	}
 	fn := debounce.Debounce(delay, func() {
-		output.set(func(trx *ObjectTrx) error {
-			err := trx.SetState(INACTIVE)
+		output.set(func() error {
+			err := output.setState(INACTIVE)
 			if err != nil {
 				return err
 			}
-			return nil
+			return output.SetValue(int(INACTIVE))
 		})
 	})
 
 	err = output.On(key, func(obj *ObjectEvent) error {
-		err := output.set(func(trx *ObjectTrx) error {
-			if obj.Object.data.State == ACTIVE {
-				err := trx.SetState(ACTIVE)
+		err := output.set(func() error {
+			if obj.Object.Data().State == ACTIVE {
+				err := output.setState(ACTIVE)
 				if err != nil {
 					return err
 				}
+				return output.SetValue(int(ACTIVE))
 			}
 			return nil
 		})

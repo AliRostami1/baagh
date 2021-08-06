@@ -8,13 +8,6 @@ import (
 	"github.com/warthog618/gpiod"
 )
 
-type ObjectTrx struct {
-	old      Object
-	new      Object
-	discard  bool
-	newState int
-}
-
 type Meta struct {
 	Name        string
 	Description string
@@ -34,61 +27,50 @@ type Object struct {
 	mu   *sync.RWMutex
 }
 
-func (o *Object) set(fn func(trx *ObjectTrx) error) error {
-	trx := &ObjectTrx{
-		old:      *o,
-		new:      *o,
-		discard:  false,
-		newState: -1,
-	}
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	err := fn(trx)
+func (o *Object) set(fn func() error) error {
+	err := fn()
 	if err != nil {
 		return err
 	}
-	if !trx.discard {
-		if trx.newState != -1 {
-			err := o.SetValue(trx.newState)
-			if err != nil {
-				return err
-			}
-		}
-		o = &trx.new
-		err = o.commitToDB()
-		if err != nil {
-			return err
-		}
+
+	data, err := o.Marshal()
+	if err != nil {
+		return err
 	}
+
+	err = o.commitToDB(data)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
-func (o *ObjectTrx) Discard() {
-	o.discard = true
+func (o *Object) SetMeta(opt Meta) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.data.Meta = opt
 }
 
-func (o *ObjectTrx) SetMeta(opt Meta) {
-	o.new.data.Meta = opt
-}
-
-func (o *ObjectTrx) SetState(state State) error {
-	if o.new.data.Info.Config.Direction == gpiod.LineDirectionOutput {
-		o.newState = int(state)
-	}
-	o.new.data.State = state
+func (o *Object) setState(state State) error {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.data.State = state
 	return nil
 }
 
-func (o *ObjectTrx) SetInfo(info gpiod.LineInfo) {
-	o.new.data.Info = info
+func (o *Object) setInfo(info gpiod.LineInfo) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.data.Info = info
 }
 
-func (o *ObjectTrx) Inactive() {
-	o.SetState(ACTIVE)
+func (o *Object) Inactive() {
+	o.setState(ACTIVE)
 }
 
-func (o *ObjectTrx) Active() {
-	o.SetState(INACTIVE)
+func (o *Object) Active() {
+	o.setState(INACTIVE)
 }
 
 func (i *Object) Data() ObjectData {
@@ -97,8 +79,10 @@ func (i *Object) Data() ObjectData {
 	return *i.data
 }
 
-func (i *Object) Marshal() (string, error) {
-	info := i.data
+func (o *Object) Marshal() (string, error) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	info := o.data
 	jsonInfo, err := json.Marshal(info)
 	if err != nil {
 		return "", err
@@ -106,22 +90,18 @@ func (i *Object) Marshal() (string, error) {
 	return string(jsonInfo), nil
 }
 
-func (i *Object) commitToDB() error {
-	data, err := i.Marshal()
-	if err != nil {
-		return err
-	}
-	err = i.Gpio.db.Set(i.key, data)
+func (o *Object) commitToDB(data string) error {
+	err := o.Gpio.db.Set(o.key, data)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func (i *Object) Key() string {
-	i.mu.Lock()
-	defer i.mu.Unlock()
-	return i.key
+func (o *Object) Key() string {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return o.key
 }
 
 type CircularDependency struct {
