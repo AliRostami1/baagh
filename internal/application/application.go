@@ -78,6 +78,7 @@ func New() (*Application, error) {
 		Consumer: "baagh",
 	})
 	if err != nil {
+		db.Close()
 		return nil, fmt.Errorf("there was a problem initiating the gpio controller: %v", err)
 	}
 
