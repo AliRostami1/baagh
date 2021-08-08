@@ -1,0 +1,8 @@
+[Unit]
+Description= Baagh application
+
+[Service]
+ExecStart=/bin/baagh
+
+[Install]
+WantedBy=multi-user.target
