@@ -1,8 +1,10 @@
 [Unit]
 Description= Baagh application
+StartLimitIntervalSec=0
 
 [Service]
 ExecStart=/bin/baagh
+Restart=on-failure
 
 [Install]
 WantedBy=multi-user.target
