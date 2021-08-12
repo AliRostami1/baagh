@@ -10,7 +10,7 @@ type chipRegistry struct {
 	*sync.RWMutex
 }
 
-func (c *chipRegistry) append(name string, chip *Chip) error {
+func (c *chipRegistry) Append(name string, chip *Chip) error {
 	c.Lock()
 	defer c.Unlock()
 
@@ -21,7 +21,7 @@ func (c *chipRegistry) append(name string, chip *Chip) error {
 	return nil
 }
 
-func (c *chipRegistry) get(name string) (*Chip, error) {
+func (c *chipRegistry) Get(name string) (*Chip, error) {
 	c.Lock()
 	defer c.Unlock()
 
@@ -32,7 +32,7 @@ func (c *chipRegistry) get(name string) (*Chip, error) {
 	return chip, nil
 }
 
-func (c *chipRegistry) forEach(fn func(chipName string, chip *Chip)) {
+func (c *chipRegistry) ForEach(fn func(chipName string, chip *Chip)) {
 	c.Lock()
 	defer c.Unlock()
 	for index, chip := range c.registry {
@@ -61,7 +61,7 @@ type itemRegistry struct {
 	*sync.RWMutex
 }
 
-func (i *itemRegistry) append(offset int, item *Item) error {
+func (i *itemRegistry) Append(offset int, item *Item) error {
 	i.Lock()
 	defer i.Unlock()
 
@@ -72,7 +72,7 @@ func (i *itemRegistry) append(offset int, item *Item) error {
 	return nil
 }
 
-func (i *itemRegistry) get(offset int) (*Item, error) {
+func (i *itemRegistry) Get(offset int) (*Item, error) {
 	i.Lock()
 	defer i.Unlock()
 
@@ -83,7 +83,7 @@ func (i *itemRegistry) get(offset int) (*Item, error) {
 	return item, nil
 }
 
-func (i *itemRegistry) forEach(fn func(offset int, item *Item)) {
+func (i *itemRegistry) ForEach(fn func(offset int, item *Item)) {
 	i.Lock()
 	defer i.Unlock()
 	for index, item := range i.registry {
@@ -118,7 +118,7 @@ type EventRegistry struct {
 	*sync.RWMutex
 }
 
-func (e *EventRegistry) addEventListener(fn ...EventHandler) error {
+func (e *EventRegistry) AddEventListener(fn ...EventHandler) error {
 	e.Lock()
 	defer e.Unlock()
 
@@ -126,7 +126,7 @@ func (e *EventRegistry) addEventListener(fn ...EventHandler) error {
 	return nil
 }
 
-func (e *EventRegistry) forEach(cb func(index int, handler EventHandler)) {
+func (e *EventRegistry) ForEach(cb func(index int, handler EventHandler)) {
 	e.Lock()
 	defer e.Unlock()
 	for index, eh := range e.events {
@@ -134,7 +134,7 @@ func (e *EventRegistry) forEach(cb func(index int, handler EventHandler)) {
 	}
 }
 
-func (e *EventRegistry) callAll(evt *ItemEvent) {
+func (e *EventRegistry) CallAll(evt *ItemEvent) {
 	e.Lock()
 	defer e.Unlock()
 	for _, eh := range e.events {

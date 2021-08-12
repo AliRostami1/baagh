@@ -24,6 +24,7 @@ func main() {
 	if err != nil {
 		app.Log.Fatal(err)
 	}
+	defer core.Cleanup()
 
 	led, err := core.RegisterItem(chipName, 10, core.AsOutput(), core.WithState(core.Inactive))
 	if err != nil {

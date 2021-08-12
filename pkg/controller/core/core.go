@@ -44,7 +44,7 @@ func RegisterChip(ctx context.Context, opts ...ChipOption) (chip *Chip, err erro
 			RWMutex:  &sync.RWMutex{},
 		},
 	}
-	err = chips.append(options.name, chip)
+	err = chips.Append(options.name, chip)
 	logger.Infof("chip %s registerd successfully by %s", options.name, options.consumer)
 	return
 }
@@ -60,7 +60,7 @@ func RegisterItem(chip string, offset int, opts ...ItemOption) (item *Item, err 
 	}
 
 	// get the chip
-	c, err := chips.get(chip)
+	c, err := chips.Get(chip)
 	if err != nil {
 		return nil, fmt.Errorf("there is no registered chip named %s", chip)
 	}
@@ -111,11 +111,11 @@ func RegisterItem(chip string, offset int, opts ...ItemOption) (item *Item, err 
 }
 
 func SetState(chipName string, offset int, state State) (err error) {
-	c, err := chips.get(chipName)
+	c, err := chips.Get(chipName)
 	if err != nil {
 		return
 	}
-	i, err := c.items.get(offset)
+	i, err := c.items.Get(offset)
 	if err != nil {
 		return
 	}
@@ -127,11 +127,11 @@ func SetState(chipName string, offset int, state State) (err error) {
 }
 
 func AddEventListener(chipName string, offset int, fns ...EventHandler) (err error) {
-	c, err := chips.get(chipName)
+	c, err := chips.Get(chipName)
 	if err != nil {
 		return
 	}
-	i, err := c.items.get(offset)
+	i, err := c.items.Get(offset)
 	if err != nil {
 		return
 	}
@@ -139,7 +139,7 @@ func AddEventListener(chipName string, offset int, fns ...EventHandler) (err err
 }
 
 func Cleanup() (err error) {
-	chips.forEach(func(chipName string, chip *Chip) {
+	chips.ForEach(func(chipName string, chip *Chip) {
 		err = multierr.Append(err, chip.Cleanup())
 	})
 	return
@@ -151,7 +151,7 @@ type Chip struct {
 }
 
 func (c *Chip) Cleanup() (err error) {
-	c.items.forEach(func(offset int, item *Item) {
+	c.items.ForEach(func(offset int, item *Item) {
 		err = multierr.Append(err, item.Cleanup())
 	})
 	multierr.Append(err, c.chip.Close())
@@ -182,7 +182,7 @@ func (i *Item) SetState(state State) (err error) {
 	events := i.events
 	i.mu.Unlock()
 
-	events.callAll(&ItemEvent{
+	events.CallAll(&ItemEvent{
 		Item: i,
 	})
 	logger.Debugf("state changed to %s on line %o of chip %s", state, i.line.Offset(), i.line.Chip())
@@ -198,7 +198,7 @@ func (i *Item) State() State {
 func (i *Item) AddEventListener(fns ...EventHandler) (err error) {
 	i.mu.Lock()
 	defer i.mu.Unlock()
-	err = i.events.addEventListener(fns...)
+	err = i.events.AddEventListener(fns...)
 	return
 }
 
