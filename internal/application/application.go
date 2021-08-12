@@ -2,36 +2,23 @@ package application
 
 import (
 	"context"
-	"fmt"
 	"log"
-	"os"
-	"path/filepath"
 
 	"github.com/AliRostami1/baagh/pkg/config"
-	"github.com/AliRostami1/baagh/pkg/controller/gpio"
-	"github.com/AliRostami1/baagh/pkg/database"
 	"github.com/AliRostami1/baagh/pkg/logger"
 	"github.com/AliRostami1/baagh/pkg/signal"
 )
 
 type Application struct {
-	Log      *logger.Logger
-	Config   *config.Config
-	DB       *database.DB
-	Gpio     *gpio.Gpio
+	Log    *logger.Logger
+	Config *config.Config
+	// DB       *database.DB
 	Ctx      context.Context
-	Path     string
 	Shutdown func(string)
 	Cleanup  func() error
 }
 
 func New() (*Application, error) {
-	userHomeDir, err := os.UserHomeDir()
-	if err != nil {
-		return nil, err
-	}
-	path := userHomeDir + "/.baagh/"
-
 	// this is the application context, it will determine when the application will exit
 	ctx, cancelCtx := context.WithCancel(context.Background())
 
@@ -51,7 +38,7 @@ func New() (*Application, error) {
 	config, err := config.New(&config.ConfigOptions{
 		ConfigName:  "config",
 		ConfigType:  "yaml",
-		ConfigPaths: []string{"/etc/baagh/", "$HOME/.baagh", "."},
+		ConfigPaths: []string{"/etc/baagh/"},
 	})
 	// we temporarily ignore this check so it doesn't terminate the program, untill we add config support
 	if err != nil {
@@ -61,42 +48,28 @@ func New() (*Application, error) {
 	// here we are handling terminate signals
 	signal.ShutdownHandler(shutdown)
 
-	// Connect to and Initialize a db instnace
-	db, err := database.New(ctx, &database.Options{
-		Path:   filepath.Join(path, "badger"),
-		Logger: logger,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("couldn't connect to db: %v", err)
-	}
+	// // Connect to and Initialize a db instnace
+	// db, err := database.New(ctx, &database.Options{
+	// 	Path:   filepath.Join("/var/log/baagh/badger"),
+	// 	Logger: logger,
+	// })
+	// if err != nil {
+	// 	return nil, fmt.Errorf("couldn't connect to db: %v", err)
+	// }
 
-	// initialize rpio package and allocate memory
-	gpio, err := gpio.New(gpio.GpioOption{
-		ChipName: "gpiochip0",
-		Ctx:      ctx,
-		DB:       db,
-		Consumer: "baagh",
-	})
-	if err != nil {
-		return nil, fmt.Errorf("there was a problem initiating the gpio controller: %v", err)
-	}
-
-	cleanup := func() error {
-		defer gpio.Cleanup()
-		err := db.Close()
-		if err != nil {
-			logger.Errorf("problem while closing the db: %v", err)
-		}
-		return err
+	cleanup := func() (err error) {
+		// err := db.Close()
+		// if err != nil {
+		// 	logger.Errorf("problem while closing the db: %v", err)
+		// }
+		return
 	}
 
 	return &Application{
-		Log:      logger,
-		Config:   config,
-		DB:       db,
-		Gpio:     gpio,
+		Log:    logger,
+		Config: config,
+		// DB:       db,
 		Ctx:      ctx,
-		Path:     path,
 		Shutdown: shutdown,
 		Cleanup:  cleanup,
 	}, nil
