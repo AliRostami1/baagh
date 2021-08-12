@@ -27,7 +27,7 @@ func New(ctx context.Context, opt ...zap.Option) (*zap.SugaredLogger, error) {
 
 type DummyLogger struct{}
 
-func (d DummyLogger) Errorf(string, ...interface{})
-func (d DummyLogger) Warnf(string, ...interface{})
-func (d DummyLogger) Infof(string, ...interface{})
-func (d DummyLogger) Debugf(string, ...interface{})
+func (d DummyLogger) Errorf(string, ...interface{}) {}
+func (d DummyLogger) Warnf(string, ...interface{})  {}
+func (d DummyLogger) Infof(string, ...interface{})  {}
+func (d DummyLogger) Debugf(string, ...interface{}) {}

@@ -18,21 +18,28 @@ func main() {
 
 	chipName := gpiod.Chips()[0]
 
+	core.SetLogger(app.Log)
+
 	_, err = core.RegisterChip(app.Ctx, core.WithName(chipName), core.WithConsumer("baagh"))
+	if err != nil {
+		app.Log.Fatal(err)
+	}
 
 	led, err := core.RegisterItem(chipName, 10, core.AsOutput(), core.WithState(core.Inactive))
+	if err != nil {
+		app.Log.Fatal(err)
+	}
 
 	pir, err := core.RegisterItem(chipName, 9, core.AsInput(core.PullDown))
 	if err != nil {
 		app.Log.Fatalf("there was a problem while initiating pir sensor: %v", err)
 	}
 	pir.AddEventListener(func(event *core.ItemEvent) {
-		led.SetState(event.Item.State())
+		err := led.SetState(event.Item.State())
+		if err != nil {
+			app.Log.Fatal(err)
+		}
 	})
-
-	if err != nil {
-		app.Log.Fatalf("there was a problem while initiating led light: %v", err)
-	}
 
 	<-app.Ctx.Done()
 }

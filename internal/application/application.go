@@ -2,20 +2,17 @@ package application
 
 import (
 	"context"
-	"fmt"
 	"log"
-	"path/filepath"
 
 	"github.com/AliRostami1/baagh/pkg/config"
-	"github.com/AliRostami1/baagh/pkg/database"
 	"github.com/AliRostami1/baagh/pkg/logger"
 	"github.com/AliRostami1/baagh/pkg/signal"
 )
 
 type Application struct {
-	Log      *logger.Logger
-	Config   *config.Config
-	DB       *database.DB
+	Log    *logger.Logger
+	Config *config.Config
+	// DB       *database.DB
 	Ctx      context.Context
 	Shutdown func(string)
 	Cleanup  func() error
@@ -51,27 +48,27 @@ func New() (*Application, error) {
 	// here we are handling terminate signals
 	signal.ShutdownHandler(shutdown)
 
-	// Connect to and Initialize a db instnace
-	db, err := database.New(ctx, &database.Options{
-		Path:   filepath.Join("/var/log/baagh/badger"),
-		Logger: logger,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("couldn't connect to db: %v", err)
-	}
+	// // Connect to and Initialize a db instnace
+	// db, err := database.New(ctx, &database.Options{
+	// 	Path:   filepath.Join("/var/log/baagh/badger"),
+	// 	Logger: logger,
+	// })
+	// if err != nil {
+	// 	return nil, fmt.Errorf("couldn't connect to db: %v", err)
+	// }
 
-	cleanup := func() error {
-		err := db.Close()
-		if err != nil {
-			logger.Errorf("problem while closing the db: %v", err)
-		}
-		return err
+	cleanup := func() (err error) {
+		// err := db.Close()
+		// if err != nil {
+		// 	logger.Errorf("problem while closing the db: %v", err)
+		// }
+		return
 	}
 
 	return &Application{
-		Log:      logger,
-		Config:   config,
-		DB:       db,
+		Log:    logger,
+		Config: config,
+		// DB:       db,
 		Ctx:      ctx,
 		Shutdown: shutdown,
 		Cleanup:  cleanup,

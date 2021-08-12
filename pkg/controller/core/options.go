@@ -65,7 +65,6 @@ type ItemOptions struct {
 		pull Pull
 	}
 	state State
-	chip  string
 }
 
 func (o OptionError) Error() string {
