@@ -2,11 +2,11 @@ package main
 
 import (
 	"log"
-	"time"
+
+	"github.com/warthog618/gpiod"
 
 	"github.com/AliRostami1/baagh/internal/application"
-	"github.com/AliRostami1/baagh/pkg/controller/gpio"
-	"github.com/warthog618/gpiod"
+	"github.com/AliRostami1/baagh/pkg/controller/core"
 )
 
 func main() {
@@ -16,23 +16,20 @@ func main() {
 	}
 	defer app.Cleanup()
 
-	pirSensor, err := app.Gpio.Input(9, gpio.InputOption{
-		Meta: gpio.Meta{
-			Name:        "pir_sensor",
-			Description: "pir sensor for detecting movement",
-		},
-		Pull: gpiod.WithPullDown,
-	})
+	chipName := gpiod.Chips()[0]
+
+	_, err = core.RegisterChip(app.Ctx, core.WithName(chipName), core.WithConsumer("baagh"))
+
+	led, err := core.RegisterItem(chipName, 10, core.AsOutput(), core.WithState(core.Inactive))
+
+	pir, err := core.RegisterItem(chipName, 9, core.AsInput(core.PullDown))
 	if err != nil {
 		app.Log.Fatalf("there was a problem while initiating pir sensor: %v", err)
 	}
-
-	_, err = app.Gpio.OutputAlarm(10, pirSensor.Key(), 7*time.Second, gpio.OutputOption{
-		Meta: gpio.Meta{
-			Name:        "led_light",
-			Description: "blue led light that turns on every time the pir_sensor senses something",
-		},
+	pir.AddEventListener(func(event *core.ItemEvent) {
+		led.SetState(event.Item.State())
 	})
+
 	if err != nil {
 		app.Log.Fatalf("there was a problem while initiating led light: %v", err)
 	}

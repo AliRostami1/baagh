@@ -32,11 +32,11 @@ func (c *chipRegistry) get(name string) (*Chip, error) {
 	return chip, nil
 }
 
-func (c *chipRegistry) forEach(fn func(chipName string, item *Chip)) {
+func (c *chipRegistry) forEach(fn func(chipName string, chip *Chip)) {
 	c.Lock()
 	defer c.Unlock()
-	for index, item := range c.registry {
-		fn(index, item)
+	for index, chip := range c.registry {
+		fn(index, chip)
 	}
 }
 
@@ -61,29 +61,29 @@ type itemRegistry struct {
 	*sync.RWMutex
 }
 
-func (i *itemRegistry) append(pin int, item *Item) error {
+func (i *itemRegistry) append(offset int, item *Item) error {
 	i.Lock()
 	defer i.Unlock()
 
-	if _, ok := i.registry[pin]; ok {
-		return DuplicateItemError{Pin: pin}
+	if _, ok := i.registry[offset]; ok {
+		return DuplicateItemError{offset: offset}
 	}
-	i.registry[pin] = item
+	i.registry[offset] = item
 	return nil
 }
 
-func (i *itemRegistry) get(pin int) (*Item, error) {
+func (i *itemRegistry) get(offset int) (*Item, error) {
 	i.Lock()
 	defer i.Unlock()
 
-	item, ok := i.registry[pin]
+	item, ok := i.registry[offset]
 	if !ok {
-		return nil, ItemNotFound{Pin: pin}
+		return nil, ItemNotFound{offset: offset}
 	}
 	return item, nil
 }
 
-func (i *itemRegistry) forEach(fn func(pin int, item *Item)) {
+func (i *itemRegistry) forEach(fn func(offset int, item *Item)) {
 	i.Lock()
 	defer i.Unlock()
 	for index, item := range i.registry {
@@ -92,22 +92,23 @@ func (i *itemRegistry) forEach(fn func(pin int, item *Item)) {
 }
 
 type DuplicateItemError struct {
-	Pin int
+	offset int
 }
 
 func (a DuplicateItemError) Error() string {
-	return fmt.Sprintf("pin: %o is already registered", a.Pin)
+	return fmt.Sprintf("offset: %o is already registered", a.offset)
 }
 
 type ItemNotFound struct {
-	Pin int
+	offset int
 }
 
 func (n ItemNotFound) Error() string {
-	return fmt.Sprintf("there is no item registered on pin: %o", n.Pin)
+	return fmt.Sprintf("there is no item registered on offset: %o", n.offset)
 }
 
 type ItemEvent struct {
+	Item *Item
 }
 
 type EventHandler func(event *ItemEvent)
@@ -117,18 +118,26 @@ type EventRegistry struct {
 	*sync.RWMutex
 }
 
-func (o *EventRegistry) addEventListener(fn ...EventHandler) error {
-	o.Lock()
-	defer o.Unlock()
+func (e *EventRegistry) addEventListener(fn ...EventHandler) error {
+	e.Lock()
+	defer e.Unlock()
 
-	o.events = append(o.events, fn...)
+	e.events = append(e.events, fn...)
 	return nil
 }
 
-func (o *EventRegistry) forEach(cb func(index int, handler EventHandler)) {
-	o.Lock()
-	defer o.Unlock()
-	for index, eh := range o.events {
+func (e *EventRegistry) forEach(cb func(index int, handler EventHandler)) {
+	e.Lock()
+	defer e.Unlock()
+	for index, eh := range e.events {
 		cb(index, eh)
+	}
+}
+
+func (e *EventRegistry) callAll(evt *ItemEvent) {
+	e.Lock()
+	defer e.Unlock()
+	for _, eh := range e.events {
+		eh(evt)
 	}
 }
