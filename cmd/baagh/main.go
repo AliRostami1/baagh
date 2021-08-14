@@ -16,22 +16,19 @@ func main() {
 	}
 	defer app.Cleanup()
 
-	chipName := gpiod.Chips()[0]
-
 	core.SetLogger(app.Log)
-
-	_, err = core.RegisterChip(app.Ctx, core.WithName(chipName), core.WithConsumer("baagh"))
+	chip, err := core.RegisterChip(app.Ctx, core.WithName(gpiod.Chips()[0]), core.WithConsumer("baagh"))
 	if err != nil {
 		app.Log.Fatal(err)
 	}
 	defer core.Cleanup()
 
-	led, err := core.RegisterItem(chipName, 10, core.AsOutput(), core.WithState(core.Inactive))
+	led, err := chip.RegisterItem(10, core.AsOutput(), core.WithState(core.Inactive))
 	if err != nil {
 		app.Log.Fatal(err)
 	}
 
-	pir, err := core.RegisterItem(chipName, 9, core.AsInput(core.PullDown))
+	pir, err := chip.RegisterItem(9, core.AsInput(core.PullDown))
 	if err != nil {
 		app.Log.Fatalf("there was a problem while initiating pir sensor: %v", err)
 	}

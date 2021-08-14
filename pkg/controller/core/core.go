@@ -17,12 +17,24 @@ var chips chipRegistry = chipRegistry{
 	RWMutex:  &sync.RWMutex{},
 }
 
-var logger log.Logger = log.DummyLogger{}
+var events = eventRegistry{}
 
-var ctx context.Context = context.Background()
+var logger log.Logger = log.DummyLogger{}
 
 func SetLogger(l log.Logger) {
 	logger = l
+}
+
+func GetChip(chipName string) (c *Chip, err error) {
+	return chips.Get(chipName)
+}
+
+func GetItem(chipName string, offset int) (i *Item, err error) {
+	c, err := GetChip(chipName)
+	if err != nil {
+		return nil, err
+	}
+	return c.GetItem(offset)
 }
 
 func RegisterChip(ctx context.Context, opts ...ChipOption) (chip *Chip, err error) {
@@ -45,69 +57,25 @@ func RegisterChip(ctx context.Context, opts ...ChipOption) (chip *Chip, err erro
 		},
 	}
 	err = chips.Append(options.name, chip)
+	if err != nil {
+		return nil, err
+	}
 	logger.Infof("chip %s registerd successfully by %s", options.name, options.consumer)
 	return
 }
 
 func RegisterItem(chip string, offset int, opts ...ItemOption) (item *Item, err error) {
-	// apply options
-	options := &ItemOptions{}
-	for _, io := range opts {
-		err = io.applyItemOption(options)
-		if err != nil {
-			return nil, err
-		}
-	}
-
 	// get the chip
 	c, err := chips.Get(chip)
 	if err != nil {
 		return nil, fmt.Errorf("there is no registered chip named %s", chip)
 	}
 
-	item = &Item{
-		line:  nil,
-		state: options.state,
-		events: &EventRegistry{
-			events:  []EventHandler{},
-			RWMutex: &sync.RWMutex{},
-		},
-		mu: &sync.RWMutex{},
-	}
+	return c.RegisterItem(offset, opts...)
+}
 
-	item.mu.Lock()
-	defer item.mu.Unlock()
-
-	switch options.io.mode {
-	case Input:
-		handler := func(evt gpiod.LineEvent) {
-			switch evt.Type {
-			case gpiod.LineEventRisingEdge:
-				item.SetState(Active)
-			case gpiod.LineEventFallingEdge:
-				item.SetState(Inactive)
-			}
-		}
-		var l *gpiod.Line
-		l, err = c.chip.RequestLine(offset, gpiod.AsInput, gpiod.WithEventHandler(handler), gpiod.WithBothEdges)
-		if err != nil {
-			return nil, err
-		}
-		item.line = l
-		logger.Infof("item registerd on line %o as %s", offset, options.io.mode)
-	case Output:
-		var l *gpiod.Line
-		l, err = c.chip.RequestLine(offset, gpiod.AsOutput(int(options.state)))
-		if err != nil {
-			return nil, err
-		}
-		item.line = l
-		logger.Infof("item registerd on line %o as %s", offset, options.io.mode)
-	default:
-		err = fmt.Errorf("you have to set the mode")
-		logger.Errorf(err.Error())
-	}
-	return
+func Subscribe(fns ...EventHandler) {
+	events.AddEventListener(fns...)
 }
 
 func SetState(chipName string, offset int, state State) (err error) {
@@ -115,7 +83,7 @@ func SetState(chipName string, offset int, state State) (err error) {
 	if err != nil {
 		return
 	}
-	i, err := c.items.Get(offset)
+	i, err := c.GetItem(offset)
 	if err != nil {
 		return
 	}
@@ -148,9 +116,79 @@ func Cleanup() (err error) {
 type Chip struct {
 	chip  *gpiod.Chip
 	items *itemRegistry
+
+	mu *sync.RWMutex
+}
+
+func (c *Chip) RegisterItem(offset int, opts ...ItemOption) (item *Item, err error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	// apply options
+	options := &ItemOptions{}
+	for _, io := range opts {
+		err = io.applyItemOption(options)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	item = &Item{
+		line:   nil,
+		state:  options.state,
+		events: &eventRegistry{},
+		mu:     &sync.RWMutex{},
+	}
+
+	item.mu.Lock()
+	defer item.mu.Unlock()
+
+	item.AddEventListener(subscribeHandler)
+
+	switch options.io.mode {
+	case Input:
+		handler := func(evt gpiod.LineEvent) {
+			switch evt.Type {
+			case gpiod.LineEventRisingEdge:
+				item.SetState(Active)
+			case gpiod.LineEventFallingEdge:
+				item.SetState(Inactive)
+			}
+		}
+		var l *gpiod.Line
+		l, err = c.chip.RequestLine(offset, gpiod.AsInput, gpiod.WithEventHandler(handler), gpiod.WithBothEdges)
+		if err != nil {
+			return nil, err
+		}
+		item.line = l
+	case Output:
+		var l *gpiod.Line
+		l, err = c.chip.RequestLine(offset, gpiod.AsOutput(int(options.state)))
+		if err != nil {
+			return nil, err
+		}
+		item.line = l
+	default:
+		return nil, fmt.Errorf("you have to set the mode")
+	}
+
+	err = c.items.Append(offset, item)
+	if err != nil {
+		return nil, err
+	}
+	logger.Infof("item registerd on line %o as %s", offset, options.io.mode)
+	return
+}
+
+func (c *Chip) GetItem(offset int) (i *Item, err error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.items.Get(offset)
 }
 
 func (c *Chip) Cleanup() (err error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	c.items.ForEach(func(offset int, item *Item) {
 		err = multierr.Append(err, item.Cleanup())
 	})
@@ -161,13 +199,17 @@ func (c *Chip) Cleanup() (err error) {
 type Item struct {
 	line   *gpiod.Line
 	state  State
-	events *EventRegistry
+	events *eventRegistry
 
 	mu *sync.RWMutex
 }
 
 func (i *Item) SetState(state State) (err error) {
 	i.mu.Lock()
+	defer i.mu.Unlock()
+	if i.state == state {
+		return
+	}
 	info, err := i.line.Info()
 	if err != nil {
 		return
@@ -179,10 +221,13 @@ func (i *Item) SetState(state State) (err error) {
 		}
 	}
 	i.state = state
-	events := i.events
+	itemEvents := i.events
 	i.mu.Unlock()
 
 	events.CallAll(&ItemEvent{
+		Item: i,
+	})
+	itemEvents.CallAll(&ItemEvent{
 		Item: i,
 	})
 	logger.Debugf("state changed to %s on line %o of chip %s", state, i.line.Offset(), i.line.Chip())
@@ -206,4 +251,8 @@ func (i *Item) Cleanup() (err error) {
 	i.mu.Lock()
 	defer i.mu.Unlock()
 	return i.line.Close()
+}
+
+func subscribeHandler(event *ItemEvent) {
+	events.CallAll(event)
 }

@@ -113,12 +113,12 @@ type ItemEvent struct {
 
 type EventHandler func(event *ItemEvent)
 
-type EventRegistry struct {
+type eventRegistry struct {
 	events []EventHandler
 	*sync.RWMutex
 }
 
-func (e *EventRegistry) AddEventListener(fn ...EventHandler) error {
+func (e *eventRegistry) AddEventListener(fn ...EventHandler) error {
 	e.Lock()
 	defer e.Unlock()
 
@@ -126,7 +126,7 @@ func (e *EventRegistry) AddEventListener(fn ...EventHandler) error {
 	return nil
 }
 
-func (e *EventRegistry) ForEach(cb func(index int, handler EventHandler)) {
+func (e *eventRegistry) ForEach(cb func(index int, handler EventHandler)) {
 	e.Lock()
 	defer e.Unlock()
 	for index, eh := range e.events {
@@ -134,10 +134,12 @@ func (e *EventRegistry) ForEach(cb func(index int, handler EventHandler)) {
 	}
 }
 
-func (e *EventRegistry) CallAll(evt *ItemEvent) {
-	e.Lock()
-	defer e.Unlock()
-	for _, eh := range e.events {
-		eh(evt)
-	}
+func (e *eventRegistry) CallAll(evt *ItemEvent) {
+	go func() {
+		e.Lock()
+		defer e.Unlock()
+		for _, eh := range e.events {
+			eh(evt)
+		}
+	}()
 }
