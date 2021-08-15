@@ -54,7 +54,7 @@ func Register(tag string, opts ...Option) (s *Security, err error) {
 	return
 }
 
-func (s *Security) SetState(state core.State) {
+func (s *Security) setState(state core.State) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.state = state
@@ -71,7 +71,7 @@ func (s *Security) AddSensor(gpioName string, tag string, offsets []int) (err er
 		}
 		i.AddEventListener(func(event *core.ItemEvent) {
 			if event.Item.State() == core.Active {
-				s.SetState(core.Active)
+				s.setState(core.Active)
 			}
 		})
 		s.sensors.Add(gpioName, offset, i)
@@ -88,4 +88,8 @@ func (s *Security) AddActuator(gpioName string, tag string, offsets []int) (err 
 		s.actuators.Add(gpioName, offset, i)
 	}
 	return
+}
+
+func (s *Security) TurnOff() {
+	s.setState(core.Inactive)
 }
