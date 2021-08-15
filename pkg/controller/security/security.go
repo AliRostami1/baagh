@@ -6,7 +6,10 @@ import (
 	"github.com/AliRostami1/baagh/pkg/controller/core"
 )
 
-var security registry = registry{}
+var security registry = registry{
+	registry: map[string]*Security{},
+	RWMutex:  &sync.RWMutex{},
+}
 
 type Security struct {
 	state     core.State
@@ -17,7 +20,9 @@ type Security struct {
 }
 
 func Register(tag string, opts ...Option) (s *Security, err error) {
-	options := &Options{}
+	options := &Options{
+		control: map[string]Control{},
+	}
 	for _, opt := range opts {
 		err = opt.applyOption(options)
 		if err != nil {
@@ -25,10 +30,16 @@ func Register(tag string, opts ...Option) (s *Security, err error) {
 		}
 	}
 	s = &Security{
-		state:     core.Inactive,
-		sensors:   &itemRegistry{},
-		actuators: &itemRegistry{},
-		mu:        &sync.RWMutex{},
+		state: core.Inactive,
+		sensors: &itemRegistry{
+			registry: map[string]map[int]*core.Item{},
+			RWMutex:  &sync.RWMutex{},
+		},
+		actuators: &itemRegistry{
+			registry: map[string]map[int]*core.Item{},
+			RWMutex:  &sync.RWMutex{},
+		},
+		mu: &sync.RWMutex{},
 	}
 	for chip, opt := range options.control {
 		err = s.AddSensor(chip, tag, opt.sensors)

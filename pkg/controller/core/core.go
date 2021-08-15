@@ -26,7 +26,6 @@ func SetLogger(l logy.Logger) {
 }
 
 func GetChip(chipName string) (c *Chip, err error) {
-	logger.Infof("getChip")
 	return chips.Get(chipName)
 }
 
@@ -106,10 +105,14 @@ func AddEventListener(chipName string, offset int, fns ...EventHandler) (err err
 }
 
 func Cleanup() (err error) {
-	logger.Infof("cleaning up the core")
 	chips.ForEach(func(chipName string, chip *Chip) {
 		err = multierr.Append(err, chip.Cleanup())
 	})
+	if err != nil {
+		logger.Errorf(err.Error())
+	} else {
+		logger.Infof("gpio core is successfully cleanedup")
+	}
 	return
 }
 
@@ -202,17 +205,22 @@ func (c *Chip) GetItem(offset int) (i *Item, err error) {
 }
 
 func (c *Chip) Cleanup() (err error) {
-	logger.Infof("cleaning up the %s chip", c.chip.Name)
 	c.mu.Lock()
 	ir := c.items
 	multierr.Append(err, c.chip.Close())
+	chipName := c.chip.Name
+	c.mu.Unlock()
 	if err != nil {
 		logger.Errorf(err.Error())
 	}
-	c.mu.Unlock()
 	ir.ForEach(func(offset int, item *Item) {
 		err = multierr.Append(err, item.Cleanup())
 	})
+	if err != nil {
+		logger.Errorf(err.Error())
+	} else {
+		logger.Infof("%s is successfuly cleaned up", chipName)
+	}
 	return
 }
 

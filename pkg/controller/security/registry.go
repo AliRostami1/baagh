@@ -14,20 +14,22 @@ type registry struct {
 
 func (r *registry) Append(tag string, security *Security) error {
 	r.Lock()
-	defer r.Unlock()
+	reg := r.registry
+	r.Unlock()
 
-	if _, ok := r.registry[tag]; ok {
+	if _, ok := reg[tag]; ok {
 		return DuplicateTagError{Tag: tag}
 	}
-	r.registry[tag] = security
+	reg[tag] = security
 	return nil
 }
 
 func (r *registry) Get(tag string) (*Security, error) {
 	r.Lock()
-	defer r.Unlock()
+	reg := r.registry
+	r.Unlock()
 
-	chip, ok := r.registry[tag]
+	chip, ok := reg[tag]
 	if !ok {
 		return nil, TagNotFoundError{Tag: tag}
 	}
@@ -36,8 +38,9 @@ func (r *registry) Get(tag string) (*Security, error) {
 
 func (r *registry) ForEach(fn func(chipName string, security *Security)) {
 	r.Lock()
-	defer r.Unlock()
-	for index, chip := range r.registry {
+	reg := r.registry
+	r.Unlock()
+	for index, chip := range reg {
 		fn(index, chip)
 	}
 }
@@ -65,18 +68,23 @@ type itemRegistry struct {
 
 func (i *itemRegistry) Add(chip string, offset int, item *core.Item) error {
 	i.Lock()
-	defer i.Unlock()
-	if _, ok := i.registry[chip][offset]; ok {
-		return DuplicateItemError{Chip: chip, Offset: offset}
+	reg := i.registry
+	i.Unlock()
+	if _, ok := reg[chip]; !ok {
+		reg[chip] = make(map[int]*core.Item)
 	}
-	i.registry[chip][offset] = item
+	reg[chip][offset] = item
 	return nil
 }
 
 func (i *itemRegistry) Get(chip string, offset int) (*core.Item, error) {
 	i.Lock()
-	defer i.Unlock()
-	if item, ok := i.registry[chip][offset]; ok {
+	reg := i.registry
+	i.Unlock()
+	if _, ok := reg[chip]; !ok {
+		return nil, ItemNotFoundError{Chip: chip, Offset: offset}
+	}
+	if item, ok := reg[chip][offset]; ok {
 		return item, nil
 	}
 	return nil, ItemNotFoundError{Chip: chip, Offset: offset}
@@ -84,8 +92,9 @@ func (i *itemRegistry) Get(chip string, offset int) (*core.Item, error) {
 
 func (i *itemRegistry) ForEach(fn func(i *core.Item)) {
 	i.Lock()
-	defer i.Unlock()
-	for _, c := range i.registry {
+	reg := i.registry
+	i.Unlock()
+	for _, c := range reg {
 		for _, i := range c {
 			fn(i)
 		}
