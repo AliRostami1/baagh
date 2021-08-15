@@ -61,7 +61,7 @@ type itemRegistry struct {
 	*sync.RWMutex
 }
 
-func (i *itemRegistry) Append(offset int, item *Item) error {
+func (i *itemRegistry) Add(offset int, item *Item) error {
 	i.Lock()
 	defer i.Unlock()
 
@@ -89,6 +89,12 @@ func (i *itemRegistry) ForEach(fn func(offset int, item *Item)) {
 	for index, item := range i.registry {
 		fn(index, item)
 	}
+}
+
+func (i *itemRegistry) Delete(offset int) {
+	i.Lock()
+	defer i.Unlock()
+	delete(i.registry, offset)
 }
 
 type DuplicateItemError struct {

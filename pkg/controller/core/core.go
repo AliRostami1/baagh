@@ -133,6 +133,21 @@ func (c *Chip) RegisterItem(offset int, opts ...ItemOption) (item *Item, err err
 		}
 	}
 
+	item, err = c.items.Get(offset)
+
+	if _, ok := err.(ItemNotFound); !ok {
+		// already exits, check if its of the same line direction
+		info, err := item.line.Info()
+		if err != nil {
+			return nil, err
+		}
+		if info.Config.Direction != gpiod.LineDirection(options.io.mode) {
+			return nil, fmt.Errorf("this item is already registered as %s", Mode(info.Config.Direction))
+		}
+		item.incrOwner()
+		return item, nil
+	}
+
 	item = &Item{
 		line:   nil,
 		state:  options.state,
@@ -172,7 +187,7 @@ func (c *Chip) RegisterItem(offset int, opts ...ItemOption) (item *Item, err err
 		return nil, fmt.Errorf("you have to set the mode")
 	}
 
-	err = c.items.Append(offset, item)
+	err = c.items.Add(offset, item)
 	if err != nil {
 		return nil, err
 	}
@@ -197,11 +212,34 @@ func (c *Chip) Cleanup() (err error) {
 }
 
 type Item struct {
-	line   *gpiod.Line
-	state  State
-	events *eventRegistry
+	line       *gpiod.Line
+	state      State
+	events     *eventRegistry
+	ownerCount int
 
 	mu *sync.RWMutex
+}
+
+// gc : Garbage Collection, this should only be called
+// by incrOwner and decrOwner
+func (i *Item) gc() {
+	if i.ownerCount == 0 {
+		i.Cleanup()
+	}
+}
+
+func (i *Item) incrOwner() {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	i.ownerCount += 1
+	i.gc()
+}
+
+func (i *Item) decrOwner() {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	i.ownerCount -= 1
+	i.gc()
 }
 
 func (i *Item) SetState(state State) (err error) {
@@ -250,6 +288,11 @@ func (i *Item) AddEventListener(fns ...EventHandler) (err error) {
 func (i *Item) Cleanup() (err error) {
 	i.mu.Lock()
 	defer i.mu.Unlock()
+	c, err := GetChip(i.line.Chip())
+	if err != nil {
+		return
+	}
+	c.items.Delete(i.line.Offset())
 	return i.line.Close()
 }
 
