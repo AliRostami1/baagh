@@ -7,6 +7,7 @@ import (
 
 	"github.com/AliRostami1/baagh/internal/application"
 	"github.com/AliRostami1/baagh/pkg/controller/core"
+	"github.com/AliRostami1/baagh/pkg/controller/security"
 )
 
 func main() {
@@ -16,28 +17,33 @@ func main() {
 	}
 	defer app.Cleanup()
 
+	chipName := gpiod.Chips()[0]
+
 	core.SetLogger(app.Log)
-	chip, err := core.RegisterChip(app.Ctx, core.WithName(gpiod.Chips()[0]), core.WithConsumer("baagh"))
+	_, err = core.RegisterChip(app.Ctx, core.WithName(chipName), core.WithConsumer("baagh"))
 	if err != nil {
 		app.Log.Fatal(err)
 	}
 	defer core.Cleanup()
 
-	led, err := chip.RegisterItem(10, core.AsOutput(), core.WithState(core.Inactive))
-	if err != nil {
-		app.Log.Fatal(err)
-	}
+	security.Register("alarm", security.WithConfig(chipName, []int{9}, []int{10}))
 
-	pir, err := chip.RegisterItem(9, core.AsInput(core.PullDown))
-	if err != nil {
-		app.Log.Fatalf("there was a problem while initiating pir sensor: %v", err)
-	}
-	pir.AddEventListener(func(event *core.ItemEvent) {
-		err := led.SetState(event.Item.State())
-		if err != nil {
-			app.Log.Fatal(err)
-		}
-	})
+	// led, err := chip.RegisterItem(10, core.AsOutput(), core.WithState(core.Inactive))
+	// if err != nil {
+	// 	app.Log.Fatal(err)
+	// }
+
+	// pir, err := chip.RegisterItem(9, core.AsInput(core.PullDown))
+	// if err != nil {
+	// 	app.Log.Fatalf("there was a problem while initiating pir sensor: %v", err)
+	// }
+	// pir.AddEventListener(func(event *core.ItemEvent) {
+	// 	err := led.SetState(event.Item.State())
+	// 	if err != nil {
+	// 		app.Log.Fatal(err)
+	// 	}
+	// })
 
 	<-app.Ctx.Done()
+
 }

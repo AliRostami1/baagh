@@ -12,20 +12,21 @@ type chipRegistry struct {
 
 func (c *chipRegistry) Append(name string, chip *Chip) error {
 	c.Lock()
-	defer c.Unlock()
+	reg := c.registry
+	c.Unlock()
 
-	if _, ok := c.registry[name]; ok {
+	if _, ok := reg[name]; ok {
 		return DuplicateChipError{Chip: name}
 	}
-	c.registry[name] = chip
+	reg[name] = chip
 	return nil
 }
 
 func (c *chipRegistry) Get(name string) (*Chip, error) {
 	c.Lock()
-	defer c.Unlock()
-
-	chip, ok := c.registry[name]
+	reg := c.registry
+	c.Unlock()
+	chip, ok := reg[name]
 	if !ok {
 		return nil, ChipNotFoundError{Chip: name}
 	}
@@ -34,8 +35,9 @@ func (c *chipRegistry) Get(name string) (*Chip, error) {
 
 func (c *chipRegistry) ForEach(fn func(chipName string, chip *Chip)) {
 	c.Lock()
-	defer c.Unlock()
-	for index, chip := range c.registry {
+	reg := c.registry
+	c.Unlock()
+	for index, chip := range reg {
 		fn(index, chip)
 	}
 }
@@ -61,22 +63,24 @@ type itemRegistry struct {
 	*sync.RWMutex
 }
 
-func (i *itemRegistry) Append(offset int, item *Item) error {
+func (i *itemRegistry) Add(offset int, item *Item) error {
 	i.Lock()
-	defer i.Unlock()
+	reg := i.registry
+	i.Unlock()
 
-	if _, ok := i.registry[offset]; ok {
+	if _, ok := reg[offset]; ok {
 		return DuplicateItemError{offset: offset}
 	}
-	i.registry[offset] = item
+	reg[offset] = item
 	return nil
 }
 
 func (i *itemRegistry) Get(offset int) (*Item, error) {
 	i.Lock()
-	defer i.Unlock()
+	reg := i.registry
+	i.Unlock()
 
-	item, ok := i.registry[offset]
+	item, ok := reg[offset]
 	if !ok {
 		return nil, ItemNotFound{offset: offset}
 	}
@@ -85,10 +89,18 @@ func (i *itemRegistry) Get(offset int) (*Item, error) {
 
 func (i *itemRegistry) ForEach(fn func(offset int, item *Item)) {
 	i.Lock()
-	defer i.Unlock()
-	for index, item := range i.registry {
+	reg := i.registry
+	i.Unlock()
+	for index, item := range reg {
 		fn(index, item)
 	}
+}
+
+func (i *itemRegistry) Delete(offset int) {
+	i.Lock()
+	reg := i.registry
+	i.Unlock()
+	delete(reg, offset)
 }
 
 type DuplicateItemError struct {

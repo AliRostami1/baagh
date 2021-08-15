@@ -4,7 +4,7 @@
 # systemd_path and reloads systemd configuration so 
 # the changes apply
 
-init_folder=../init/systemd/
+init_folder=init/systemd/
 systemd_path=/etc/systemd/system/
 
 # Copy .service files to sysyemd folder
