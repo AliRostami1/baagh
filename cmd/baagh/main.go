@@ -1,7 +1,9 @@
 package main
 
 import (
+	"bufio"
 	"log"
+	"os"
 
 	"github.com/warthog618/gpiod"
 
@@ -26,23 +28,19 @@ func main() {
 	}
 	defer core.Cleanup()
 
-	security.Register("alarm", security.WithConfig(chipName, []int{9}, []int{10}))
+	alarm, err := security.Register("alarm", security.WithConfig(chipName, []int{9}, []int{10}))
+	if err != nil {
+		return
+	}
 
-	// led, err := chip.RegisterItem(10, core.AsOutput(), core.WithState(core.Inactive))
-	// if err != nil {
-	// 	app.Log.Fatal(err)
-	// }
-
-	// pir, err := chip.RegisterItem(9, core.AsInput(core.PullDown))
-	// if err != nil {
-	// 	app.Log.Fatalf("there was a problem while initiating pir sensor: %v", err)
-	// }
-	// pir.AddEventListener(func(event *core.ItemEvent) {
-	// 	err := led.SetState(event.Item.State())
-	// 	if err != nil {
-	// 		app.Log.Fatal(err)
-	// 	}
-	// })
+	go func() {
+		input := bufio.NewScanner(os.Stdin)
+		for input.Scan() {
+			if input.Text() == "turn off" {
+				alarm.TurnOff()
+			}
+		}
+	}()
 
 	<-app.Ctx.Done()
 

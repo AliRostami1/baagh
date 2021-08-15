@@ -17,7 +17,10 @@ var chips chipRegistry = chipRegistry{
 	RWMutex:  &sync.RWMutex{},
 }
 
-var events = eventRegistry{}
+var events = eventRegistry{
+	events:  []EventHandler{},
+	RWMutex: &sync.RWMutex{},
+}
 
 var logger logy.Logger = logy.DummyLogger{}
 
@@ -257,20 +260,23 @@ func (i *Item) decrOwner() {
 
 func (i *Item) SetState(state State) (err error) {
 	i.mu.Lock()
-	defer i.mu.Unlock()
-	if i.state == state {
+	iState := i.state
+	line := i.line
+	i.mu.Unlock()
+	if iState == state {
 		return
 	}
-	info, err := i.line.Info()
+	info, err := line.Info()
 	if err != nil {
 		return
 	}
 	if info.Config.Direction == gpiod.LineDirectionOutput {
-		err = i.line.SetValue(int(state))
+		err = line.SetValue(int(state))
 		if err != nil {
 			return
 		}
 	}
+	i.mu.Lock()
 	i.state = state
 	itemEvents := i.events
 	i.mu.Unlock()
@@ -307,6 +313,7 @@ func (i *Item) Cleanup() (err error) {
 		return
 	}
 	c.items.Delete(line.Offset())
+	line.SetValue(int(Inactive))
 	line.Close()
 	i = nil
 	logger.Infof("cleaned up item %o of %s", line.Offset(), line.Chip())
