@@ -1,4 +1,4 @@
-package log
+package logy
 
 import (
 	"context"

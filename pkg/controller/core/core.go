@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/AliRostami1/baagh/pkg/log"
+	"github.com/AliRostami1/baagh/pkg/logy"
 
 	"github.com/warthog618/gpiod"
 	"go.uber.org/multierr"
@@ -19,13 +19,14 @@ var chips chipRegistry = chipRegistry{
 
 var events = eventRegistry{}
 
-var logger log.Logger = log.DummyLogger{}
+var logger logy.Logger = logy.DummyLogger{}
 
-func SetLogger(l log.Logger) {
+func SetLogger(l logy.Logger) {
 	logger = l
 }
 
 func GetChip(chipName string) (c *Chip, err error) {
+	logger.Infof("getChip")
 	return chips.Get(chipName)
 }
 
@@ -50,11 +51,9 @@ func RegisterChip(ctx context.Context, opts ...ChipOption) (chip *Chip, err erro
 		return
 	}
 	chip = &Chip{
-		chip: c,
-		items: &itemRegistry{
-			registry: map[int]*Item{},
-			RWMutex:  &sync.RWMutex{},
-		},
+		chip:  c,
+		items: &itemRegistry{registry: map[int]*Item{}, RWMutex: &sync.RWMutex{}},
+		mu:    &sync.RWMutex{},
 	}
 	err = chips.Append(options.name, chip)
 	if err != nil {
@@ -107,6 +106,7 @@ func AddEventListener(chipName string, offset int, fns ...EventHandler) (err err
 }
 
 func Cleanup() (err error) {
+	logger.Infof("cleaning up the core")
 	chips.ForEach(func(chipName string, chip *Chip) {
 		err = multierr.Append(err, chip.Cleanup())
 	})
@@ -149,15 +149,15 @@ func (c *Chip) RegisterItem(offset int, opts ...ItemOption) (item *Item, err err
 	}
 
 	item = &Item{
-		line:   nil,
-		state:  options.state,
-		events: &eventRegistry{},
-		mu:     &sync.RWMutex{},
+		line:  nil,
+		state: options.state,
+		events: &eventRegistry{
+			events:  []EventHandler{},
+			RWMutex: &sync.RWMutex{},
+		},
+		ownerCount: 0,
+		mu:         &sync.RWMutex{},
 	}
-
-	item.mu.Lock()
-	defer item.mu.Unlock()
-
 	item.AddEventListener(subscribeHandler)
 
 	switch options.io.mode {
@@ -202,12 +202,17 @@ func (c *Chip) GetItem(offset int) (i *Item, err error) {
 }
 
 func (c *Chip) Cleanup() (err error) {
+	logger.Infof("cleaning up the %s chip", c.chip.Name)
 	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.items.ForEach(func(offset int, item *Item) {
+	ir := c.items
+	multierr.Append(err, c.chip.Close())
+	if err != nil {
+		logger.Errorf(err.Error())
+	}
+	c.mu.Unlock()
+	ir.ForEach(func(offset int, item *Item) {
 		err = multierr.Append(err, item.Cleanup())
 	})
-	multierr.Append(err, c.chip.Close())
 	return
 }
 
@@ -287,14 +292,16 @@ func (i *Item) AddEventListener(fns ...EventHandler) (err error) {
 
 func (i *Item) Cleanup() (err error) {
 	i.mu.Lock()
-	defer i.mu.Unlock()
-	c, err := GetChip(i.line.Chip())
+	line := i.line
+	i.mu.Unlock()
+	c, err := GetChip(line.Chip())
 	if err != nil {
 		return
 	}
-	c.items.Delete(i.line.Offset())
-	i.line.Close()
+	c.items.Delete(line.Offset())
+	line.Close()
 	i = nil
+	logger.Infof("cleaned up item %o of %s", line.Offset(), line.Chip())
 	return
 }
 
