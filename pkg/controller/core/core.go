@@ -220,26 +220,26 @@ type Item struct {
 	mu *sync.RWMutex
 }
 
-// gc : Garbage Collection, this should only be called
-// by incrOwner and decrOwner
-func (i *Item) gc() {
-	if i.ownerCount == 0 {
-		i.Cleanup()
-	}
+func (i *Item) Unregister() {
+	i.decrOwner()
 }
 
 func (i *Item) incrOwner() {
 	i.mu.Lock()
 	defer i.mu.Unlock()
 	i.ownerCount += 1
-	i.gc()
+	if i.ownerCount == 0 {
+		i.Cleanup()
+	}
 }
 
 func (i *Item) decrOwner() {
 	i.mu.Lock()
 	defer i.mu.Unlock()
 	i.ownerCount -= 1
-	i.gc()
+	if i.ownerCount == 0 {
+		i.Cleanup()
+	}
 }
 
 func (i *Item) SetState(state State) (err error) {
@@ -293,7 +293,9 @@ func (i *Item) Cleanup() (err error) {
 		return
 	}
 	c.items.Delete(i.line.Offset())
-	return i.line.Close()
+	i.line.Close()
+	i = nil
+	return
 }
 
 func subscribeHandler(event *ItemEvent) {
