@@ -75,9 +75,13 @@ func (g *General) State() core.State {
 
 func (g *General) setState(state core.State) {
 	g.mu.Lock()
+	if state == g.state {
+		return
+	}
 	g.state = state
 	actuators := g.actuators
 	g.mu.Unlock()
+
 	actuators.ForEach(func(i *core.Item) {
 		i.SetState(state)
 	})
