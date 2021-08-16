@@ -1,7 +1,6 @@
 package general
 
 import (
-	"log"
 	"sync"
 
 	"github.com/AliRostami1/baagh/pkg/controller/core"
@@ -89,7 +88,6 @@ func (g *General) setState(state core.State) {
 }
 
 func (g *General) AddSensor(gpioName string, tag string, offsets []int) (err error) {
-	log.Printf("*g = %#v", *g)
 	for _, offset := range offsets {
 		i, err := core.RegisterItem(gpioName, offset, core.AsInput(core.PullDown), core.WithState(g.state))
 		if err != nil {
