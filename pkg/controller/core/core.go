@@ -24,8 +24,12 @@ var events = eventRegistry{
 
 var logger logy.Logger = logy.DummyLogger{}
 
-func SetLogger(l logy.Logger) {
+func SetLogger(l logy.Logger) error {
+	if l == nil {
+		return fmt.Errorf("logger can't be nil")
+	}
 	logger = l
+	return nil
 }
 
 func GetChip(chipName string) (c *Chip, err error) {
