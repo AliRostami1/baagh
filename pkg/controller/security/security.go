@@ -93,3 +93,7 @@ func (s *Security) AddActuator(gpioName string, tag string, offsets []int) (err 
 func (s *Security) TurnOff() {
 	s.setState(core.Inactive)
 }
+
+func (s *Security) TurnOn() {
+	s.setState(core.Active)
+}
