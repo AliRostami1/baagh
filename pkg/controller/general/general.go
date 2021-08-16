@@ -57,7 +57,20 @@ func Register(tag string, opts ...Option) (g *General, err error) {
 			return
 		}
 	}
+
+	initalState := core.Inactive
+	if options.kind == RSync {
+		initalState = core.Active
+	}
+	g.setState(initalState)
+
 	return
+}
+
+func (g *General) State() core.State {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	return g.state
 }
 
 func (g *General) setState(state core.State) {

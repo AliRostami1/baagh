@@ -28,7 +28,7 @@ func main() {
 	}
 	defer core.Cleanup()
 
-	alarm, err := general.Register("security-system", general.AsSync(general.OneIn), general.WithConfig(chipName, []int{9}, []int{10}))
+	alarm, err := general.Register("security-system", general.AsRSync(general.OneIn), general.WithConfig(chipName, []int{9}, []int{10}))
 	if err != nil {
 		return
 	}
