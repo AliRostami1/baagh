@@ -1,4 +1,4 @@
-package security
+package general
 
 import (
 	"fmt"
@@ -8,11 +8,11 @@ import (
 )
 
 type registry struct {
-	registry map[string]*Security
+	registry map[string]*General
 	*sync.RWMutex
 }
 
-func (r *registry) Append(tag string, security *Security) error {
+func (r *registry) Append(tag string, General *General) error {
 	r.Lock()
 	reg := r.registry
 	r.Unlock()
@@ -20,11 +20,11 @@ func (r *registry) Append(tag string, security *Security) error {
 	if _, ok := reg[tag]; ok {
 		return DuplicateTagError{Tag: tag}
 	}
-	reg[tag] = security
+	reg[tag] = General
 	return nil
 }
 
-func (r *registry) Get(tag string) (*Security, error) {
+func (r *registry) Get(tag string) (*General, error) {
 	r.Lock()
 	reg := r.registry
 	r.Unlock()
@@ -36,7 +36,7 @@ func (r *registry) Get(tag string) (*Security, error) {
 	return chip, nil
 }
 
-func (r *registry) ForEach(fn func(chipName string, security *Security)) {
+func (r *registry) ForEach(fn func(chipName string, General *General)) {
 	r.Lock()
 	reg := r.registry
 	r.Unlock()

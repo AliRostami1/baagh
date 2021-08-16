@@ -24,8 +24,12 @@ var events = eventRegistry{
 
 var logger logy.Logger = logy.DummyLogger{}
 
-func SetLogger(l logy.Logger) {
+func SetLogger(l logy.Logger) error {
+	if l == nil {
+		return fmt.Errorf("logger can't be nil")
+	}
 	logger = l
+	return nil
 }
 
 func GetChip(chipName string) (c *Chip, err error) {
@@ -164,7 +168,9 @@ func (c *Chip) RegisterItem(offset int, opts ...ItemOption) (item *Item, err err
 		ownerCount: 0,
 		mu:         &sync.RWMutex{},
 	}
-	item.AddEventListener(subscribeHandler)
+	item.AddEventListener(func(event *ItemEvent) {
+		events.CallAll(event)
+	})
 
 	switch options.io.mode {
 	case Input:
@@ -318,8 +324,4 @@ func (i *Item) Cleanup() (err error) {
 	i = nil
 	logger.Infof("cleaned up item %o of %s", line.Offset(), line.Chip())
 	return
-}
-
-func subscribeHandler(event *ItemEvent) {
-	events.CallAll(event)
 }

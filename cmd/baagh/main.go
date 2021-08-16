@@ -9,7 +9,7 @@ import (
 
 	"github.com/AliRostami1/baagh/internal/application"
 	"github.com/AliRostami1/baagh/pkg/controller/core"
-	"github.com/AliRostami1/baagh/pkg/controller/security"
+	"github.com/AliRostami1/baagh/pkg/controller/general"
 )
 
 func main() {
@@ -28,7 +28,7 @@ func main() {
 	}
 	defer core.Cleanup()
 
-	alarm, err := security.Register("alarm", security.WithConfig(chipName, []int{9}, []int{10}))
+	alarm, err := general.Register("security-system", general.AsAlarm(), general.WithConfig(chipName, []int{9}, []int{10}))
 	if err != nil {
 		return
 	}

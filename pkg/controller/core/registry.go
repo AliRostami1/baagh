@@ -149,8 +149,12 @@ func (e *eventRegistry) ForEach(cb func(index int, handler EventHandler)) {
 func (e *eventRegistry) CallAll(evt *ItemEvent) {
 	go func() {
 		e.Lock()
-		defer e.Unlock()
-		for _, eh := range e.events {
+		events := e.events
+		e.Unlock()
+		for _, eh := range events {
+			if eh == nil {
+				logger.Infof("eh is nil")
+			}
 			eh(evt)
 		}
 	}()
