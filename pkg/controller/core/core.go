@@ -168,7 +168,9 @@ func (c *Chip) RegisterItem(offset int, opts ...ItemOption) (item *Item, err err
 		ownerCount: 0,
 		mu:         &sync.RWMutex{},
 	}
-	item.AddEventListener(subscribeHandler)
+	item.AddEventListener(func(event *ItemEvent) {
+		events.CallAll(event)
+	})
 
 	switch options.io.mode {
 	case Input:
@@ -322,8 +324,4 @@ func (i *Item) Cleanup() (err error) {
 	i = nil
 	logger.Infof("cleaned up item %o of %s", line.Offset(), line.Chip())
 	return
-}
-
-func subscribeHandler(event *ItemEvent) {
-	events.CallAll(event)
 }
