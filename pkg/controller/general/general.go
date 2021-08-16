@@ -1,6 +1,7 @@
 package general
 
 import (
+	"log"
 	"sync"
 
 	"github.com/AliRostami1/baagh/pkg/controller/core"
@@ -70,6 +71,7 @@ func (g *General) setState(state core.State) {
 }
 
 func (g *General) AddSensor(gpioName string, tag string, offsets []int) (err error) {
+	log.Printf("*g = %#v", *g)
 	for _, offset := range offsets {
 		i, err := core.RegisterItem(gpioName, offset, core.AsInput(core.PullDown), core.WithState(g.state))
 		if err != nil {
@@ -93,6 +95,9 @@ func (g *General) AddSensor(gpioName string, tag string, offsets []int) (err err
 			case OneIn:
 				handler = g.RSyncHandlerOneIn
 			}
+		}
+		if handler == nil {
+			panic("mode should be set")
 		}
 
 		i.AddEventListener(handler)

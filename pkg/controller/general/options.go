@@ -74,35 +74,57 @@ func WithConfig(chip string, sensors []int, actuators []int) ConfigOption {
 	}
 }
 
-type KindOption string
+type KindOption struct {
+	kind     string
+	strategy string
+}
 
 func (k KindOption) applyOption(o *Options) error {
-	if k == "" {
-		k = Sync
-	} else if k != Alarm && k != Sync && k != RSync {
+	if k.kind == "" {
+		k.kind = Sync
+		k.strategy = AllIn
+	} else if (k.kind == Sync || k.kind == RSync) && (k.strategy != AllIn && k.strategy != OneIn) {
 		return OptionError{
-			Field: "kind",
+			Field: "Strategy",
+			Value: k,
+		}
+	} else if k.kind != Alarm && k.kind != Sync && k.kind != RSync {
+		return OptionError{
+			Field: "Kind",
 			Value: k,
 		}
 	}
-	o.kind = string(k)
+	o.kind = k.kind
+	o.strategy = k.strategy
 	return nil
 }
 
-func WithKind(kind string) KindOption {
-	return KindOption(kind)
+func WithKind(kind string, strategy string) KindOption {
+	return KindOption{
+		kind:     kind,
+		strategy: strategy,
+	}
 }
 
 func AsAlarm() KindOption {
-	return KindOption(Alarm)
+	return KindOption{
+		kind:     Alarm,
+		strategy: "",
+	}
 }
 
-func AsSync() KindOption {
-	return KindOption(Sync)
+func AsSync(strategy string) KindOption {
+	return KindOption{
+		kind:     Sync,
+		strategy: strategy,
+	}
 }
 
-func AsRSync() KindOption {
-	return KindOption(RSync)
+func AsRSync(strategy string) KindOption {
+	return KindOption{
+		kind:     RSync,
+		strategy: strategy,
+	}
 }
 
 type StrategyOption string
@@ -131,6 +153,7 @@ func AsAllIn() StrategyOption {
 func AsOneIn() StrategyOption {
 	return OneIn
 }
+
 func (o OptionError) Error() string {
 	return fmt.Sprintf("field %s can not be: %v", o.Field, o.Value)
 }
