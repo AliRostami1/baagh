@@ -76,6 +76,7 @@ func (g *General) State() core.State {
 func (g *General) setState(state core.State) {
 	g.mu.Lock()
 	if state == g.state {
+		g.mu.Unlock()
 		return
 	}
 	g.state = state
