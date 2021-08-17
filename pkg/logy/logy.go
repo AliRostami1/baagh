@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 type Logger interface {
@@ -13,11 +14,16 @@ type Logger interface {
 	Debugf(string, ...interface{})
 }
 
-func New(ctx context.Context, opt ...zap.Option) (*zap.SugaredLogger, error) {
-	logger, err := zap.NewProduction(opt...)
+func New(ctx context.Context, level zapcore.Level, opt ...zap.Option) (*zap.SugaredLogger, error) {
+	zapProdConfig := zap.NewProductionConfig()
+	zapProdConfig.Level = zap.NewAtomicLevelAt(level)
+
+	logger, err := zapProdConfig.Build(opt...)
 	if err != nil {
 		return nil, err
 	}
+	zap.RedirectStdLog(logger)
+
 	go func() {
 		<-ctx.Done()
 		logger.Sync()
