@@ -1,36 +1,12 @@
 package core
 
 import (
-	"context"
 	"fmt"
 	"sync"
-
-	"github.com/AliRostami1/baagh/pkg/logy"
 
 	"github.com/warthog618/gpiod"
 	"go.uber.org/multierr"
 )
-
-// key is chip name
-var chips chipRegistry = chipRegistry{
-	registry: map[string]*Chip{},
-	RWMutex:  &sync.RWMutex{},
-}
-
-var events = eventRegistry{
-	events:  []EventHandler{},
-	RWMutex: &sync.RWMutex{},
-}
-
-var logger logy.Logger = logy.DummyLogger{}
-
-func SetLogger(l logy.Logger) error {
-	if l == nil {
-		return fmt.Errorf("logger can't be nil")
-	}
-	logger = l
-	return nil
-}
 
 func GetChip(chipName string) (c *Chip, err error) {
 	return chips.Get(chipName)
@@ -44,34 +20,9 @@ func GetItem(chipName string, offset int) (i *Item, err error) {
 	return c.GetItem(offset)
 }
 
-func RegisterChip(ctx context.Context, opts ...ChipOption) (chip *Chip, err error) {
-	options := &ChipOptions{}
-	for _, co := range opts {
-		err = co.applyChipOption(options)
-		if err != nil {
-			return
-		}
-	}
-	c, err := gpiod.NewChip(options.name, gpiod.WithConsumer(options.consumer))
-	if err != nil {
-		return
-	}
-	chip = &Chip{
-		chip:  c,
-		items: &itemRegistry{registry: map[int]*Item{}, RWMutex: &sync.RWMutex{}},
-		mu:    &sync.RWMutex{},
-	}
-	err = chips.Append(options.name, chip)
-	if err != nil {
-		return nil, err
-	}
-	logger.Infof("chip %s registerd successfully by %s", options.name, options.consumer)
-	return
-}
-
 func RegisterItem(chip string, offset int, opts ...ItemOption) (item *Item, err error) {
 	// get the chip
-	c, err := chips.Get(chip)
+	c, err := GetChip(chip)
 	if err != nil {
 		return nil, fmt.Errorf("there is no registered chip named %s", chip)
 	}
@@ -79,16 +30,8 @@ func RegisterItem(chip string, offset int, opts ...ItemOption) (item *Item, err 
 	return c.RegisterItem(offset, opts...)
 }
 
-func Subscribe(fns ...EventHandler) {
-	events.AddEventListener(fns...)
-}
-
 func SetState(chipName string, offset int, state State) (err error) {
-	c, err := chips.Get(chipName)
-	if err != nil {
-		return
-	}
-	i, err := c.GetItem(offset)
+	i, err := GetItem(chipName, offset)
 	if err != nil {
 		return
 	}
@@ -100,11 +43,7 @@ func SetState(chipName string, offset int, state State) (err error) {
 }
 
 func AddEventListener(chipName string, offset int, fns ...EventHandler) (err error) {
-	c, err := chips.Get(chipName)
-	if err != nil {
-		return
-	}
-	i, err := c.items.Get(offset)
+	i, err := GetItem(chipName, offset)
 	if err != nil {
 		return
 	}
@@ -123,116 +62,6 @@ func Cleanup() (err error) {
 	return
 }
 
-type Chip struct {
-	chip  *gpiod.Chip
-	items *itemRegistry
-
-	mu *sync.RWMutex
-}
-
-func (c *Chip) RegisterItem(offset int, opts ...ItemOption) (item *Item, err error) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	// apply options
-	options := &ItemOptions{}
-	for _, io := range opts {
-		err = io.applyItemOption(options)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	item, err = c.items.Get(offset)
-
-	if _, ok := err.(ItemNotFound); !ok {
-		// already exits, check if its of the same line direction
-		info, err := item.line.Info()
-		if err != nil {
-			return nil, err
-		}
-		if info.Config.Direction != gpiod.LineDirection(options.io.mode) {
-			return nil, fmt.Errorf("this item is already registered as %s", Mode(info.Config.Direction))
-		}
-		item.incrOwner()
-		return item, nil
-	}
-
-	item = &Item{
-		line:  nil,
-		state: options.state,
-		events: &eventRegistry{
-			events:  []EventHandler{},
-			RWMutex: &sync.RWMutex{},
-		},
-		ownerCount: 0,
-		mu:         &sync.RWMutex{},
-	}
-	item.AddEventListener(func(event *ItemEvent) {
-		events.CallAll(event)
-	})
-
-	switch options.io.mode {
-	case Input:
-		handler := func(evt gpiod.LineEvent) {
-			switch evt.Type {
-			case gpiod.LineEventRisingEdge:
-				item.SetState(Active)
-			case gpiod.LineEventFallingEdge:
-				item.SetState(Inactive)
-			}
-		}
-		var l *gpiod.Line
-		l, err = c.chip.RequestLine(offset, gpiod.AsInput, gpiod.WithEventHandler(handler), gpiod.WithBothEdges)
-		if err != nil {
-			return nil, err
-		}
-		item.line = l
-	case Output:
-		var l *gpiod.Line
-		l, err = c.chip.RequestLine(offset, gpiod.AsOutput(int(options.state)))
-		if err != nil {
-			return nil, err
-		}
-		item.line = l
-	default:
-		return nil, fmt.Errorf("you have to set the mode")
-	}
-
-	err = c.items.Add(offset, item)
-	if err != nil {
-		return nil, err
-	}
-	logger.Infof("item registerd on line %o as %s", offset, options.io.mode)
-	return
-}
-
-func (c *Chip) GetItem(offset int) (i *Item, err error) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	return c.items.Get(offset)
-}
-
-func (c *Chip) Cleanup() (err error) {
-	c.mu.Lock()
-	ir := c.items
-	multierr.Append(err, c.chip.Close())
-	chipName := c.chip.Name
-	c.mu.Unlock()
-	if err != nil {
-		logger.Errorf(err.Error())
-	}
-	ir.ForEach(func(offset int, item *Item) {
-		err = multierr.Append(err, item.Cleanup())
-	})
-	if err != nil {
-		logger.Errorf(err.Error())
-	} else {
-		logger.Infof("%s is successfuly cleaned up", chipName)
-	}
-	return
-}
-
 type Item struct {
 	line       *gpiod.Line
 	state      State
@@ -242,26 +71,32 @@ type Item struct {
 	mu *sync.RWMutex
 }
 
-func (i *Item) Unregister() {
-	i.decrOwner()
-}
-
-func (i *Item) incrOwner() {
-	i.mu.Lock()
-	defer i.mu.Unlock()
-	i.ownerCount += 1
-	if i.ownerCount == 0 {
-		i.Cleanup()
+func newItem(state State) *Item {
+	return &Item{
+		line:  nil,
+		state: state,
+		events: &eventRegistry{
+			events:  []EventHandler{},
+			RWMutex: &sync.RWMutex{},
+		},
+		ownerCount: 0,
+		mu:         &sync.RWMutex{},
 	}
 }
 
-func (i *Item) decrOwner() {
+func (i *Item) Unregister() {
 	i.mu.Lock()
 	defer i.mu.Unlock()
 	i.ownerCount -= 1
 	if i.ownerCount == 0 {
 		i.Cleanup()
 	}
+}
+
+func (i *Item) incrOwner() {
+	i.mu.Lock()
+	i.ownerCount += 1
+	i.mu.Unlock()
 }
 
 func (i *Item) SetState(state State) (err error) {

@@ -1,15 +1,8 @@
 package core
 
 import (
-	"fmt"
-
-	"github.com/warthog618/gpiod"
+	"github.com/AliRostami1/baagh/pkg/errprim"
 )
-
-type OptionError struct {
-	Field string
-	Value interface{}
-}
 
 type ChipOption interface {
 	applyChipOption(*ChipOptions) error
@@ -20,31 +13,11 @@ type ChipOptions struct {
 	consumer string
 }
 
-type NameOption string
-
-func (n NameOption) applyChipOption(c *ChipOptions) error {
-	var chipExistsOnDevice bool
-	for _, deviceChipName := range gpiod.Chips() {
-		if string(n) == deviceChipName {
-			chipExistsOnDevice = true
-		}
-	}
-	if chipExistsOnDevice {
-		c.name = string(n)
-		return nil
-	}
-	return OptionError{Field: "name", Value: n}
-}
-
-func WithName(name string) NameOption {
-	return NameOption(name)
-}
-
 type ConsumerOption string
 
 func (n ConsumerOption) applyChipOption(c *ChipOptions) error {
 	if string(n) == "" {
-		n = "baagh"
+		return errprim.OptionError{Field: "Consumer", Value: n}
 	}
 	c.consumer = string(n)
 	return nil
@@ -59,61 +32,52 @@ type ItemOption interface {
 }
 
 type ItemOptions struct {
-	// mode can be "input" and "output"
-	io struct {
-		mode Mode
-		pull Pull
-	}
+	mode  Mode
+	pull  Pull
 	state State
 }
 
-func (o OptionError) Error() string {
-	return fmt.Sprintf("field %s can not be: %v", o.Field, o.Value)
-}
-
 type InputOption struct {
-	mode Mode
 	pull Pull
 }
 
 func (i InputOption) applyItemOption(item *ItemOptions) (err error) {
-	if err = i.mode.Check(); err != nil {
-		return OptionError{Field: "mode", Value: i.mode}
-	}
 	if err = i.pull.Check(); err != nil {
-		return OptionError{Field: "pull", Value: i.pull}
+		return errprim.OptionError{Field: "pull", Value: i.pull}
 	}
-	item.io.mode = i.mode
-	item.io.pull = i.pull
+	item.mode = Input
+	item.pull = i.pull
 	return nil
 }
 
 func AsInput(pull Pull) InputOption {
 	return InputOption{
-		mode: Input,
 		pull: pull,
 	}
 }
 
-type OutputOption Mode
+type OutputOption struct {
+	state State
+}
 
 func (o OutputOption) applyItemOption(item *ItemOptions) (err error) {
-	if err = Mode(o).Check(); err != nil {
-		return OptionError{Field: "mode", Value: o}
+	if err = o.state.Check(); err != nil {
+		return
 	}
-	item.io.mode = Mode(o)
+	item.state = o.state
+	item.mode = Output
 	return
 }
 
-func AsOutput() OutputOption {
-	return OutputOption(Output)
+func AsOutput(state State) OutputOption {
+	return OutputOption{state: state}
 }
 
 type StateOption State
 
 func (s StateOption) applyItemOption(item *ItemOptions) (err error) {
 	if err = State(s).Check(); err != nil {
-		return OptionError{Field: "state", Value: s}
+		return errprim.OptionError{Field: "state", Value: s}
 	}
 	item.state = State(s)
 	return

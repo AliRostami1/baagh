@@ -22,7 +22,7 @@ func main() {
 	chipName := gpiod.Chips()[0]
 
 	core.SetLogger(app.Log)
-	_, err = core.RegisterChip(app.Ctx, core.WithName(chipName), core.WithConsumer("baagh"))
+	_, err = core.RegisterChip(chipName, core.WithConsumer("baagh"))
 	if err != nil {
 		app.Log.Fatal(err)
 	}

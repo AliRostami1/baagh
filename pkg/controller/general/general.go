@@ -124,7 +124,7 @@ func (g *General) AddSensor(gpioName string, tag string, offsets []int) (err err
 
 func (g *General) AddActuator(gpioName string, tag string, offsets []int) (err error) {
 	for _, offset := range offsets {
-		i, err := core.RegisterItem(gpioName, offset, core.AsOutput(), core.WithState(core.Inactive))
+		i, err := core.RegisterItem(gpioName, offset, core.AsOutput(core.Inactive))
 		if err != nil {
 			return err
 		}

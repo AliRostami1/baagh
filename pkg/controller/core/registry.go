@@ -10,7 +10,14 @@ type chipRegistry struct {
 	*sync.RWMutex
 }
 
-func (c *chipRegistry) Append(name string, chip *Chip) error {
+func newChipRegistry() *chipRegistry {
+	return &chipRegistry{
+		registry: map[string]*Chip{},
+		RWMutex:  &sync.RWMutex{},
+	}
+}
+
+func (c *chipRegistry) Add(name string, chip *Chip) error {
 	c.Lock()
 	reg := c.registry
 	c.Unlock()
@@ -20,6 +27,13 @@ func (c *chipRegistry) Append(name string, chip *Chip) error {
 	}
 	reg[name] = chip
 	return nil
+}
+
+func (c *chipRegistry) Delete(name string) {
+	c.Lock()
+	reg := c.registry
+	c.Unlock()
+	delete(reg, name)
 }
 
 func (c *chipRegistry) Get(name string) (*Chip, error) {
@@ -61,6 +75,13 @@ func (c ChipNotFoundError) Error() string {
 type itemRegistry struct {
 	registry map[int]*Item
 	*sync.RWMutex
+}
+
+func newItemRegistry() *itemRegistry {
+	return &itemRegistry{
+		registry: map[int]*Item{},
+		RWMutex:  &sync.RWMutex{},
+	}
 }
 
 func (i *itemRegistry) Add(offset int, item *Item) error {
@@ -128,6 +149,13 @@ type EventHandler func(event *ItemEvent)
 type eventRegistry struct {
 	events []EventHandler
 	*sync.RWMutex
+}
+
+func newEventRegistry() *eventRegistry {
+	return &eventRegistry{
+		events:  []EventHandler{},
+		RWMutex: &sync.RWMutex{},
+	}
 }
 
 func (e *eventRegistry) AddEventListener(fn ...EventHandler) error {
