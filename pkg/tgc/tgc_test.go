@@ -44,7 +44,7 @@ func TestDefaultNew(t *testing.T) {
 		assert.Equal(t, 1, called)
 	}
 
-	for i := 0; i < 10; i += 1 {
+	for i := 0; i < 20; i += 1 {
 		tgc.Delete()
 	}
 
@@ -104,7 +104,7 @@ func TestNewCustom(t *testing.T) {
 		assert.Equal(t, 1, called)
 	}
 
-	for i := 0; i < 10; i += 1 {
+	for i := 0; i < 20; i += 1 {
 		tgc.Delete()
 	}
 
