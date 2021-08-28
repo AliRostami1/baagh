@@ -25,21 +25,29 @@ type Tgc struct {
 	*sync.RWMutex
 }
 
-func New(onChange OnChangeCallback, opts ...Option) *Tgc {
+func New(onChange OnChangeCallback, opts ...Option) (tgc *Tgc, err error) {
+	if onChange == nil {
+		return nil, errprim.OptionError{Field: "onChange", Value: onChange}
+	}
 	options := &Options{
 		limit:             math.MaxUint16,
-		initialOwnerCount: 1,
+		initialOwnerCount: 0,
 	}
 	for _, opt := range opts {
-		opt.applyOption(options)
+		err = opt.applyOption(options)
+		if err != nil {
+			return
+		}
 	}
-	return &Tgc{
+	tgc = &Tgc{
 		ownerCount: options.initialOwnerCount,
 		limit:      options.limit,
-		state:      options.initialOwnerCount > 0,
+		state:      false,
 		onChange:   onChange,
 		RWMutex:    &sync.RWMutex{},
 	}
+	tgc.stateChangeCheck()
+	return
 }
 
 func (t *Tgc) Count() uint {
@@ -51,6 +59,7 @@ func (t *Tgc) Count() uint {
 func (t *Tgc) Add() {
 	t.Lock()
 	if t.ownerCount == t.limit {
+		t.Unlock()
 		return
 	}
 	t.ownerCount += 1
@@ -61,6 +70,7 @@ func (t *Tgc) Add() {
 func (t *Tgc) Delete() {
 	t.Lock()
 	if t.ownerCount == 0 {
+		t.Unlock()
 		return
 	}
 	t.ownerCount -= 1
@@ -84,16 +94,12 @@ func (t *Tgc) stateChangeCheck() {
 	t.Lock()
 	if t.ownerCount > 0 != t.state {
 		t.state = t.ownerCount > 0
-		if t.onChange != nil {
-			s := t.state
-			t.Unlock()
-			t.onChange(s)
-		} else {
-			t.Unlock()
-		}
-	} else {
+		s := t.state
 		t.Unlock()
+		t.onChange(s)
+		return
 	}
+	t.Unlock()
 }
 
 type Option interface {
@@ -108,7 +114,7 @@ type Options struct {
 type LimitOption uint
 
 func (l LimitOption) applyOption(o *Options) error {
-	if l == 0 || uint(l) > uint(o.initialOwnerCount) {
+	if l == 0 || uint(l) < uint(o.initialOwnerCount) {
 		return errprim.OptionError{Field: "Limit", Value: l}
 	}
 	o.limit = uint(l)
@@ -127,4 +133,8 @@ func (i InitialOwnerCountOption) applyOption(o *Options) error {
 	}
 	o.initialOwnerCount = uint(i)
 	return nil
+}
+
+func WithInitialOwnerCount(cnt uint) InitialOwnerCountOption {
+	return InitialOwnerCountOption(cnt)
 }

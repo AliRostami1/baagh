@@ -35,10 +35,15 @@ func RegisterChip(name string, opts ...ChipOption) (chip *Chip, err error) {
 	chip, err = GetChip(name)
 
 	if _, ok := err.(ChipNotFoundError); ok {
+		var t *tgc.Tgc
+		t, err = tgc.New(chip.tgcHandler)
+		if err != nil {
+			return
+		}
 		chip = &Chip{
 			chip:    nil,
 			items:   newItemRegistry(),
-			tgc:     tgc.New(chip.tgcHandler),
+			tgc:     t,
 			options: options,
 			mu:      &sync.RWMutex{},
 		}
