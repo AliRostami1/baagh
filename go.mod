@@ -4,6 +4,7 @@ go 1.16
 
 require (
 	github.com/dgraph-io/badger/v3 v3.2103.1
+	github.com/martinohmann/rfoutlet v1.2.0
 	github.com/spf13/viper v1.8.1
 	github.com/stretchr/testify v1.7.0
 	github.com/warthog618/gpiod v0.6.0
