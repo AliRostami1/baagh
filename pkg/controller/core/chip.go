@@ -11,6 +11,16 @@ import (
 
 var chips = newChipRegistry()
 
+type ChipI interface {
+	Register() error
+	Unregister()
+	RequestItem()
+	RequestItems()
+	Single() bool
+	Active() bool
+	Info()
+}
+
 type Chip struct {
 	chip    *gpiod.Chip
 	items   *itemRegistry
@@ -71,7 +81,7 @@ func (c *Chip) tgcHandler(b bool) {
 }
 
 func (c *Chip) removeChip() (err error) {
-	err = c.Cleanup()
+	err = c.Close()
 	c.chip = nil
 	chips.Delete(c.options.name)
 	return
@@ -95,6 +105,10 @@ func (c *Chip) createChip() (err error) {
 func (c *Chip) RegisterItem(offset int, opts ...ItemOption) (item *Item, err error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+
+	// if c.chip == nil {
+
+	// }
 
 	// apply options
 	options := &ItemOptions{}
@@ -172,7 +186,7 @@ func (c *Chip) GetItem(offset int) (i *Item, err error) {
 	return c.items.Get(offset)
 }
 
-func (c *Chip) Cleanup() (err error) {
+func (c *Chip) Close() (err error) {
 	c.mu.Lock()
 	ir := c.items
 	multierr.Append(err, c.chip.Close())
@@ -182,7 +196,7 @@ func (c *Chip) Cleanup() (err error) {
 		logger.Errorf(err.Error())
 	}
 	ir.ForEach(func(offset int, item *Item) {
-		err = multierr.Append(err, item.Cleanup())
+		err = multierr.Append(err, item.Close())
 	})
 	if err != nil {
 		logger.Errorf(err.Error())

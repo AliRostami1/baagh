@@ -26,7 +26,7 @@ func main() {
 	if err != nil {
 		app.Log.Fatal(err)
 	}
-	defer core.Cleanup()
+	defer core.Close()
 
 	alarm, err := general.Register("security-system", general.AsAlarm(), general.WithConfig(chipName, []int{9}, []int{10}))
 	if err != nil {
