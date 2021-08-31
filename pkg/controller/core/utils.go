@@ -2,7 +2,6 @@ package core
 
 import (
 	"fmt"
-	"os"
 )
 
 type State int
@@ -103,9 +102,4 @@ type InvalidPullError struct{}
 
 func (i InvalidPullError) Error() string {
 	return fmt.Sprintf("mode can't be any value other than %s and %s", Output, Input)
-}
-
-func defaultConsumer() string {
-	exe, _ := os.Executable()
-	return exe
 }

@@ -11,13 +11,15 @@ import (
 
 var chips = newChipRegistry()
 
-type ChipI interface {
+type ChipInfo struct {
+}
+
+type Chip interface {
 	Closer
-	New() error
-	RequestItem()
-	RequestItems()
-	Used()
-	Info()
+	RequestItem(offset int, opts ...ItemOption) (Item, error)
+	Used() bool
+	Info() (ChipInfo, error)
+	GetItem(offset int) (Item, error)
 }
 
 type chip struct {
@@ -28,8 +30,8 @@ type chip struct {
 	*sync.RWMutex
 }
 
-func RequestChip(name string) (c *chip, err error) {
-	c, err = GetChip(name)
+func RequestChip(name string) (Chip, error) {
+	c, err := getChip(name)
 
 	// if chip doesn't exits, create it
 	if _, ok := err.(ChipNotFoundError); ok {
@@ -44,13 +46,13 @@ func RequestChip(name string) (c *chip, err error) {
 		var t *tgc.Tgc
 		t, err = tgc.New(c.tgcHandler)
 		if err != nil {
-			return
+			return nil, err
 		}
 		c.tgc = t
 
 		err = chips.Add(name, c)
 		if err != nil {
-			return
+			return nil, err
 		}
 
 		logger.Infof("chip %s registerd successfully by %s", name)
@@ -61,7 +63,7 @@ func RequestChip(name string) (c *chip, err error) {
 	c.tgc.Add()
 	c.Unlock()
 
-	return
+	return c, err
 }
 
 func (c *chip) tgcHandler(b bool) {
@@ -80,7 +82,7 @@ func (c *chip) tgcHandler(b bool) {
 	}
 }
 
-func (c *chip) RequestItem(offset int, opts ...ItemOption) (i *item, err error) {
+func (c *chip) RequestItem(offset int, opts ...ItemOption) (Item, error) {
 	c.Lock()
 	itemReg := c.items
 	c.Unlock()
@@ -88,17 +90,17 @@ func (c *chip) RequestItem(offset int, opts ...ItemOption) (i *item, err error) 
 	// apply options
 	options := &ItemOptions{}
 	for _, io := range opts {
-		err = io.applyItemOption(options)
+		err := io.applyItemOption(options)
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	i, err = itemReg.Get(offset)
+	i, err := itemReg.Get(offset)
 
 	if _, ok := err.(ItemNotFound); ok {
 		// item doesnt exist in registry so we'll create it
-		i = &item{
+		i := &item{
 			Line:    nil,
 			RWMutex: &sync.RWMutex{},
 			chip:    c,
@@ -109,8 +111,7 @@ func (c *chip) RequestItem(offset int, opts ...ItemOption) (i *item, err error) 
 			tgc:     nil,
 		}
 
-		var t *tgc.Tgc
-		t, err = tgc.New(i.tgcHandler)
+		t, err := tgc.New(i.tgcHandler)
 		if err != nil {
 			return nil, err
 		}
@@ -142,7 +143,21 @@ func (c *chip) RequestItem(offset int, opts ...ItemOption) (i *item, err error) 
 	return i, nil
 }
 
-func (c *chip) GetItem(offset int) (i *item, err error) {
+func (c *chip) Info() (ChipInfo, error) {
+	return ChipInfo{}, nil
+}
+
+func (c *chip) Used() bool {
+	c.Lock()
+	defer c.Unlock()
+	return c.tgc.State()
+}
+
+func (c *chip) GetItem(offset int) (Item, error) {
+	return c.getItem(offset)
+}
+
+func (c *chip) getItem(offset int) (i *item, err error) {
 	c.Lock()
 	defer c.Unlock()
 	return c.items.Get(offset)

@@ -7,13 +7,15 @@ import (
 	"github.com/warthog618/gpiod"
 )
 
-type ItemI interface {
-	Close()
+type ItemInfo struct {
+}
+
+type Item interface {
+	Closer
 	NewWatcher() (Watcher, error)
-	SetState() error
+	SetState(State) error
 	State() State
-	Mode() Mode
-	Info()
+	Info() ItemInfo
 }
 
 type item struct {
@@ -25,12 +27,6 @@ type item struct {
 	events  *eventRegistry
 	options *ItemOptions
 	tgc     *tgc.Tgc
-}
-
-func (i *item) Unregister() {
-	i.Lock()
-	i.tgc.Delete()
-	i.Unlock()
 }
 
 func (i *item) tgcHandler(b bool) {
@@ -114,18 +110,28 @@ func (i *item) State() State {
 	return i.state
 }
 
-func (i *item) NewWatcher() Watcher {
-	chip, _ := GetChip(i.Chip())
+func (i *item) Info() ItemInfo {
+	return ItemInfo{}
+}
+
+func (i *item) NewWatcher() (Watcher, error) {
+	chip, err := getChip(i.Chip())
+	if err != nil {
+		return nil, err
+	}
+
 	w := &watcher{
 		item:         i,
 		chip:         chip,
 		eventChannel: make(chan ItemEvent),
 	}
+
 	i.Lock()
 	ev := i.events
 	i.Unlock()
 	ev.Add(w.eventChannel)
-	return w
+
+	return w, nil
 }
 
 func (i *item) removeWatcher(ch EventChannel) {
@@ -146,7 +152,7 @@ func (i *item) cleanup() (err error) {
 	i.Lock()
 	line := i.Line
 	i.Unlock()
-	c, err := GetChip(line.Chip())
+	c, err := getChip(line.Chip())
 	if err != nil {
 		return
 	}
