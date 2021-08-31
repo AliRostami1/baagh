@@ -6,24 +6,24 @@ import (
 )
 
 type chipRegistry struct {
-	registry map[string]*Chip
+	registry map[string]*chip
 	*sync.RWMutex
 }
 
 func newChipRegistry() *chipRegistry {
 	return &chipRegistry{
-		registry: map[string]*Chip{},
+		registry: map[string]*chip{},
 		RWMutex:  &sync.RWMutex{},
 	}
 }
 
-func (c *chipRegistry) Add(name string, chip *Chip) error {
+func (c *chipRegistry) Add(name string, chip *chip) error {
 	c.Lock()
 	reg := c.registry
 	c.Unlock()
 
 	if _, ok := reg[name]; ok {
-		return DuplicateChipError{Chip: name}
+		return DuplicateChipError{chip: name}
 	}
 	reg[name] = chip
 	return nil
@@ -36,18 +36,18 @@ func (c *chipRegistry) Delete(name string) {
 	delete(reg, name)
 }
 
-func (c *chipRegistry) Get(name string) (*Chip, error) {
+func (c *chipRegistry) Get(name string) (*chip, error) {
 	c.Lock()
 	reg := c.registry
 	c.Unlock()
 	chip, ok := reg[name]
 	if !ok {
-		return nil, ChipNotFoundError{Chip: name}
+		return nil, ChipNotFoundError{chip: name}
 	}
 	return chip, nil
 }
 
-func (c *chipRegistry) ForEach(fn func(chipName string, chip *Chip)) {
+func (c *chipRegistry) ForEach(fn func(chipName string, chip *chip)) {
 	c.Lock()
 	reg := c.registry
 	c.Unlock()
@@ -57,34 +57,34 @@ func (c *chipRegistry) ForEach(fn func(chipName string, chip *Chip)) {
 }
 
 type DuplicateChipError struct {
-	Chip string
+	chip string
 }
 
 func (d DuplicateChipError) Error() string {
-	return fmt.Sprintf("chip: %s is already registered", d.Chip)
+	return fmt.Sprintf("chip: %s is already registered", d.chip)
 }
 
 type ChipNotFoundError struct {
-	Chip string
+	chip string
 }
 
 func (c ChipNotFoundError) Error() string {
-	return fmt.Sprintf("there is no chip with named: %s", c.Chip)
+	return fmt.Sprintf("there is no chip with named: %s", c.chip)
 }
 
 type itemRegistry struct {
-	registry map[int]*Item
+	registry map[int]*item
 	*sync.RWMutex
 }
 
 func newItemRegistry() *itemRegistry {
 	return &itemRegistry{
-		registry: map[int]*Item{},
+		registry: map[int]*item{},
 		RWMutex:  &sync.RWMutex{},
 	}
 }
 
-func (i *itemRegistry) Add(offset int, item *Item) error {
+func (i *itemRegistry) Add(offset int, item *item) error {
 	i.Lock()
 	reg := i.registry
 	i.Unlock()
@@ -96,7 +96,7 @@ func (i *itemRegistry) Add(offset int, item *Item) error {
 	return nil
 }
 
-func (i *itemRegistry) Get(offset int) (*Item, error) {
+func (i *itemRegistry) Get(offset int) (*item, error) {
 	i.Lock()
 	reg := i.registry
 	i.Unlock()
@@ -108,7 +108,7 @@ func (i *itemRegistry) Get(offset int) (*Item, error) {
 	return item, nil
 }
 
-func (i *itemRegistry) ForEach(fn func(offset int, item *Item)) {
+func (i *itemRegistry) ForEach(fn func(offset int, item *item)) {
 	i.Lock()
 	reg := i.registry
 	i.Unlock()
@@ -140,50 +140,46 @@ func (n ItemNotFound) Error() string {
 	return fmt.Sprintf("there is no item registered on offset: %o", n.offset)
 }
 
-type ItemEvent struct {
-	Item *Item
-}
+// type EventHandler func(event *ItemEvent)
 
-type EventHandler func(event *ItemEvent)
+// type eventRegistry struct {
+// 	events []EventHandler
+// 	*sync.RWMutex
+// }
 
-type eventRegistry struct {
-	events []EventHandler
-	*sync.RWMutex
-}
+// func newEventRegistry() *eventRegistry {
+// 	return &eventRegistry{
+// 		events:  []EventHandler{},
+// 		RWMutex: &sync.RWMutex{},
+// 	}
+// }
 
-func newEventRegistry() *eventRegistry {
-	return &eventRegistry{
-		events:  []EventHandler{},
-		RWMutex: &sync.RWMutex{},
-	}
-}
+// func (e *eventRegistry) AddEventListener(fn ...EventHandler) error {
+// 	e.Lock()
+// 	defer e.Unlock()
 
-func (e *eventRegistry) AddEventListener(fn ...EventHandler) error {
-	e.Lock()
-	defer e.Unlock()
+// 	e.events = append(e.events, fn...)
+// 	return nil
+// }
 
-	e.events = append(e.events, fn...)
-	return nil
-}
+// func (e *eventRegistry) ForEach(cb func(index int, handler EventHandler)) {
+// 	e.Lock()
+// 	defer e.Unlock()
+// 	for index, eh := range e.events {
+// 		cb(index, eh)
+// 	}
+// }
 
-func (e *eventRegistry) ForEach(cb func(index int, handler EventHandler)) {
-	e.Lock()
-	defer e.Unlock()
-	for index, eh := range e.events {
-		cb(index, eh)
-	}
-}
-
-func (e *eventRegistry) CallAll(evt *ItemEvent) {
-	go func() {
-		e.Lock()
-		events := e.events
-		e.Unlock()
-		for _, eh := range events {
-			if eh == nil {
-				logger.Infof("eh is nil")
-			}
-			eh(evt)
-		}
-	}()
-}
+// func (e *eventRegistry) CallAll(evt *ItemEvent) {
+// 	go func() {
+// 		e.Lock()
+// 		events := e.events
+// 		e.Unlock()
+// 		for _, eh := range events {
+// 			if eh == nil {
+// 				logger.Infof("eh is nil")
+// 			}
+// 			eh(evt)
+// 		}
+// 	}()
+// }

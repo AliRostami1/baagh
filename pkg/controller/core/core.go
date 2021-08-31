@@ -6,11 +6,15 @@ import (
 	"go.uber.org/multierr"
 )
 
-func GetChip(chipName string) (c *Chip, err error) {
+type Closer interface {
+	Close() error
+}
+
+func GetChip(chipName string) (c *chip, err error) {
 	return chips.Get(chipName)
 }
 
-func GetItem(chipName string, offset int) (i *Item, err error) {
+func GetItem(chipName string, offset int) (i *item, err error) {
 	c, err := GetChip(chipName)
 	if err != nil {
 		return nil, err
@@ -18,14 +22,14 @@ func GetItem(chipName string, offset int) (i *Item, err error) {
 	return c.GetItem(offset)
 }
 
-func RegisterItem(chip string, offset int, opts ...ItemOption) (item *Item, err error) {
+func RequestItem(chip string, offset int, opts ...ItemOption) (item *item, err error) {
 	// get the chip
 	c, err := GetChip(chip)
 	if err != nil {
 		return nil, fmt.Errorf("there is no registered chip named %s", chip)
 	}
 
-	return c.RegisterItem(offset, opts...)
+	return c.RequestItem(offset, opts...)
 }
 
 func SetState(chipName string, offset int, state State) (err error) {
@@ -40,17 +44,17 @@ func SetState(chipName string, offset int, state State) (err error) {
 	return
 }
 
-func AddEventListener(chipName string, offset int, fns ...EventHandler) (err error) {
+func NewWatcher(chipName string, offset int) (Watcher, error) {
 	i, err := GetItem(chipName, offset)
 	if err != nil {
-		return
+		return nil, err
 	}
-	return i.AddEventListener(fns...)
+	return i.NewWatcher(), nil
 }
 
 func Close() (err error) {
-	chips.ForEach(func(chipName string, chip *Chip) {
-		err = multierr.Append(err, chip.Close())
+	chips.ForEach(func(chipName string, chip *chip) {
+		err = multierr.Append(err, chip.cleanup())
 	})
 	if err != nil {
 		logger.Errorf(err.Error())

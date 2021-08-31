@@ -12,103 +12,78 @@ import (
 var chips = newChipRegistry()
 
 type ChipI interface {
-	Register() error
-	Unregister()
+	Closer
+	New() error
 	RequestItem()
 	RequestItems()
-	Single() bool
-	Active() bool
+	Used()
 	Info()
 }
 
-type Chip struct {
-	chip    *gpiod.Chip
-	items   *itemRegistry
-	tgc     *tgc.Tgc
-	options *ChipOptions
-
-	mu *sync.RWMutex
+type chip struct {
+	*gpiod.Chip
+	items *itemRegistry
+	tgc   *tgc.Tgc
+	name  string
+	*sync.RWMutex
 }
 
-func RegisterChip(name string, opts ...ChipOption) (chip *Chip, err error) {
-	options := &ChipOptions{
-		name:     name,
-		consumer: defaultConsumer(),
-	}
-	for _, co := range opts {
-		err = co.applyChipOption(options)
-		if err != nil {
-			return
-		}
-	}
+func RequestChip(name string) (c *chip, err error) {
+	c, err = GetChip(name)
 
-	chip, err = GetChip(name)
-
+	// if chip doesn't exits, create it
 	if _, ok := err.(ChipNotFoundError); ok {
+		c = &chip{
+			Chip:    nil,
+			items:   newItemRegistry(),
+			tgc:     nil,
+			name:    name,
+			RWMutex: &sync.RWMutex{},
+		}
+
 		var t *tgc.Tgc
-		t, err = tgc.New(chip.tgcHandler)
+		t, err = tgc.New(c.tgcHandler)
 		if err != nil {
 			return
 		}
-		chip = &Chip{
-			chip:    nil,
-			items:   newItemRegistry(),
-			tgc:     t,
-			options: options,
-			mu:      &sync.RWMutex{},
+		c.tgc = t
+
+		err = chips.Add(name, c)
+		if err != nil {
+			return
 		}
-		logger.Infof("chip %s registerd successfully by %s", name, options.consumer)
-		return
+
+		logger.Infof("chip %s registerd successfully by %s", name)
 	}
 
-	if err != nil {
-		return
-	}
-
-	chip.mu.Lock()
-	chip.tgc.Add()
-	chip.mu.Unlock()
+	// if chip exist just add new owner to it
+	c.Lock()
+	c.tgc.Add()
+	c.Unlock()
 
 	return
 }
 
-func (c *Chip) tgcHandler(b bool) {
+func (c *chip) tgcHandler(b bool) {
 	if b {
-		c.createChip()
+		chip, err := gpiod.NewChip(c.name)
+		if err != nil {
+			return
+		}
+		c.Lock()
+		c.Chip = chip
+		c.Unlock()
+		chips.Add(c.name, c)
 	} else {
-		c.removeChip()
+		chips.Delete(c.name)
+		c.cleanup()
 	}
 }
 
-func (c *Chip) removeChip() (err error) {
-	err = c.Close()
-	c.chip = nil
-	chips.Delete(c.options.name)
-	return
-}
-
-func (c *Chip) createChip() (err error) {
-	chip, err := gpiod.NewChip(c.options.name, gpiod.WithConsumer(c.options.consumer))
-	if err != nil {
-		return
-	}
-	c.mu.Lock()
-	c.chip = chip
-	c.mu.Unlock()
-	err = chips.Add(c.options.name, c)
-	if err != nil {
-		return err
-	}
-	return
-}
-
-func (c *Chip) RegisterItem(offset int, opts ...ItemOption) (item *Item, err error) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	// if c.chip == nil {
-
-	// }
+func (c *chip) RequestItem(offset int, opts ...ItemOption) (i *item, err error) {
+	c.Lock()
+	itemReg := c.items
+	c.Unlock()
 
 	// apply options
 	options := &ItemOptions{}
@@ -119,84 +94,78 @@ func (c *Chip) RegisterItem(offset int, opts ...ItemOption) (item *Item, err err
 		}
 	}
 
-	item, err = c.items.Get(offset)
+	i, err = itemReg.Get(offset)
 
 	if _, ok := err.(ItemNotFound); ok {
 		// item doesnt exist in registry so we'll create it
-		item = newItem(options.state)
-		item.AddEventListener(func(event *ItemEvent) {
-			events.CallAll(event)
-		})
-
-		switch options.mode {
-		case Input:
-			handler := func(evt gpiod.LineEvent) {
-				switch evt.Type {
-				case gpiod.LineEventRisingEdge:
-					item.SetState(Active)
-				case gpiod.LineEventFallingEdge:
-					item.SetState(Inactive)
-				}
-			}
-			var l *gpiod.Line
-			l, err = c.chip.RequestLine(offset, gpiod.AsInput, gpiod.WithEventHandler(handler), gpiod.WithBothEdges)
-			if err != nil {
-				return nil, err
-			}
-			item.line = l
-		case Output:
-			var l *gpiod.Line
-			l, err = c.chip.RequestLine(offset, gpiod.AsOutput(int(options.state)))
-			if err != nil {
-				return nil, err
-			}
-			item.line = l
-		default:
-			return nil, fmt.Errorf("you have to set the mode")
+		i = &item{
+			Line:    nil,
+			RWMutex: &sync.RWMutex{},
+			chip:    c,
+			state:   options.state,
+			offset:  offset,
+			events:  newEventRegistry(),
+			options: options,
+			tgc:     nil,
 		}
 
-		err = c.items.Add(offset, item)
+		var t *tgc.Tgc
+		t, err = tgc.New(i.tgcHandler)
 		if err != nil {
 			return nil, err
 		}
+		i.tgc = t
+
+		err = itemReg.Add(offset, i)
+		if err != nil {
+			return nil, err
+		}
+
 		logger.Infof("item registerd on line %o as %s", offset, options.mode)
-		return
+	} else {
+		// already exits, check if its of the same line direction
+		i.Lock()
+		info, err := i.Line.Info()
+		i.Unlock()
+		if err != nil {
+			return nil, err
+		}
+		if info.Config.Direction != gpiod.LineDirection(options.mode) {
+			return nil, fmt.Errorf("this item is already registered as %s", Mode(info.Config.Direction))
+		}
 	}
 
-	// errors other than ItemNotFound shoudd just be returned
-	if err != nil {
-		return nil, err
-	}
+	i.Lock()
+	i.tgc.Add()
+	i.Unlock()
 
-	// already exits, check if its of the same line direction
-	info, err := item.line.Info()
-	if err != nil {
-		return nil, err
-	}
-	if info.Config.Direction != gpiod.LineDirection(options.mode) {
-		return nil, fmt.Errorf("this item is already registered as %s", Mode(info.Config.Direction))
-	}
-	item.incrOwner()
-	return item, nil
+	return i, nil
 }
 
-func (c *Chip) GetItem(offset int) (i *Item, err error) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+func (c *chip) GetItem(offset int) (i *item, err error) {
+	c.Lock()
+	defer c.Unlock()
 	return c.items.Get(offset)
 }
 
-func (c *Chip) Close() (err error) {
-	c.mu.Lock()
+func (c *chip) Close() error {
+	c.Lock()
+	defer c.Unlock()
+	c.tgc.Delete()
+	return nil
+}
+
+func (c *chip) cleanup() (err error) {
+	c.Lock()
 	ir := c.items
-	multierr.Append(err, c.chip.Close())
-	chipName := c.chip.Name
-	c.mu.Unlock()
+	multierr.Append(err, c.Chip.Close())
+	chipName := c.Chip.Name
+	c.Unlock()
 	if err != nil {
 		logger.Errorf(err.Error())
 	}
-	ir.ForEach(func(offset int, item *Item) {
-		err = multierr.Append(err, item.Close())
+	ir.ForEach(func(offset int, i *item) {
+		err = multierr.Append(err, i.Close())
 	})
 	if err != nil {
 		logger.Errorf(err.Error())

@@ -3,61 +3,83 @@ package core
 import (
 	"sync"
 
+	"github.com/AliRostami1/baagh/pkg/tgc"
 	"github.com/warthog618/gpiod"
 )
 
 type ItemI interface {
-	Register() error
-	Unregister()
-	Active() bool
+	Close()
+	NewWatcher() (Watcher, error)
 	SetState() error
 	State() State
 	Mode() Mode
 	Info()
 }
 
-type Item struct {
-	line       *gpiod.Line
-	state      State
-	events     *eventRegistry
-	ownerCount int
-
-	mu *sync.RWMutex
+type item struct {
+	*gpiod.Line
+	*sync.RWMutex
+	chip    *chip
+	state   State
+	offset  int
+	events  *eventRegistry
+	options *ItemOptions
+	tgc     *tgc.Tgc
 }
 
-func newItem(state State) *Item {
-	return &Item{
-		line:  nil,
-		state: state,
-		events: &eventRegistry{
-			events:  []EventHandler{},
-			RWMutex: &sync.RWMutex{},
-		},
-		ownerCount: 0,
-		mu:         &sync.RWMutex{},
+func (i *item) Unregister() {
+	i.Lock()
+	i.tgc.Delete()
+	i.Unlock()
+}
+
+func (i *item) tgcHandler(b bool) {
+	// TODO: we are ignoring error here, fix it!
+	i.Lock()
+	offset := i.offset
+	chip := i.chip
+	defer i.Unlock()
+	options := i.options
+	if b {
+		switch options.mode {
+		case Input:
+			handler := func(evt gpiod.LineEvent) {
+				switch evt.Type {
+				case gpiod.LineEventRisingEdge:
+					i.SetState(Active)
+				case gpiod.LineEventFallingEdge:
+					i.SetState(Inactive)
+				}
+			}
+			l, _ := chip.RequestLine(offset, gpiod.AsInput, gpiod.WithEventHandler(handler), gpiod.WithBothEdges)
+			// if err != nil {
+			// 	return
+			// }
+			i.Line = l
+		case Output:
+			l, _ := chip.RequestLine(offset, gpiod.AsOutput(int(options.state)))
+			// if err != nil {
+			// 	return nil, err
+			// }
+			i.Line = l
+		default:
+			return
+			// return nil, fmt.Errorf("you have to set the mode")
+		}
+	} else {
+		chip.Lock()
+		chip.items.Delete(offset)
+		chip.Unlock()
+		i.cleanup()
+		return
 	}
 }
 
-func (i *Item) Unregister() {
-	i.mu.Lock()
-	defer i.mu.Unlock()
-	i.ownerCount -= 1
-	if i.ownerCount == 0 {
-		i.Close()
-	}
-}
-
-func (i *Item) incrOwner() {
-	i.mu.Lock()
-	i.ownerCount += 1
-	i.mu.Unlock()
-}
-
-func (i *Item) SetState(state State) (err error) {
-	i.mu.Lock()
+func (i *item) SetState(state State) (err error) {
+	i.Lock()
 	iState := i.state
-	line := i.line
-	i.mu.Unlock()
+	line := i.Line
+	i.Unlock()
 	if iState == state {
 		return
 	}
@@ -71,38 +93,59 @@ func (i *Item) SetState(state State) (err error) {
 			return
 		}
 	}
-	i.mu.Lock()
+	i.Lock()
 	i.state = state
 	itemEvents := i.events
-	i.mu.Unlock()
+	i.Unlock()
 
-	events.CallAll(&ItemEvent{
-		Item: i,
+	// events.CallAll(&ItemEvent{
+	// 	item: i,
+	// })
+	itemEvents.CallAll(ItemEvent{
+		// LineEvent: i,
 	})
-	itemEvents.CallAll(&ItemEvent{
-		Item: i,
-	})
-	logger.Debugf("state changed to %s on line %o of chip %s", state, i.line.Offset(), i.line.Chip())
+	logger.Debugf("state changed to %s on line %o of chip %s", state, line.Offset(), line.Chip())
 	return
 }
 
-func (i *Item) State() State {
-	i.mu.Lock()
-	defer i.mu.Unlock()
+func (i *item) State() State {
+	i.Lock()
+	defer i.Unlock()
 	return i.state
 }
 
-func (i *Item) AddEventListener(fns ...EventHandler) (err error) {
-	i.mu.Lock()
-	defer i.mu.Unlock()
-	err = i.events.AddEventListener(fns...)
-	return
+func (i *item) NewWatcher() Watcher {
+	chip, _ := GetChip(i.Chip())
+	w := &watcher{
+		item:         i,
+		chip:         chip,
+		eventChannel: make(chan ItemEvent),
+	}
+	i.Lock()
+	ev := i.events
+	i.Unlock()
+	ev.Add(w.eventChannel)
+	return w
 }
 
-func (i *Item) Close() (err error) {
-	i.mu.Lock()
-	line := i.line
-	i.mu.Unlock()
+func (i *item) removeWatcher(ch EventChannel) {
+	i.Lock()
+	ev := i.events
+	i.Unlock()
+	ev.Remove(ch)
+}
+
+func (i *item) Close() error {
+	i.Lock()
+	i.tgc.Delete()
+	i.Unlock()
+	return nil
+}
+
+func (i *item) cleanup() (err error) {
+	i.Lock()
+	line := i.Line
+	i.Unlock()
 	c, err := GetChip(line.Chip())
 	if err != nil {
 		return
