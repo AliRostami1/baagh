@@ -1,6 +1,7 @@
 package signal
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/signal"
@@ -25,4 +26,8 @@ func ShutdownHandler(fn func(string)) {
 	go Handle(func(s os.Signal) {
 		fn(fmt.Sprintf("terminating: %v signal received", s))
 	})
+}
+
+func Gracefull() (context.Context, context.CancelFunc) {
+	return signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
 }

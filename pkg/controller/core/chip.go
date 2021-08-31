@@ -60,8 +60,9 @@ func RequestChip(name string) (Chip, error) {
 
 	// if chip exist just add new owner to it
 	c.Lock()
-	c.tgc.Add()
+	tgc := c.tgc
 	c.Unlock()
+	tgc.Add()
 
 	return c, err
 }
@@ -100,7 +101,7 @@ func (c *chip) RequestItem(offset int, opts ...ItemOption) (Item, error) {
 
 	if _, ok := err.(ItemNotFound); ok {
 		// item doesnt exist in registry so we'll create it
-		i := &item{
+		i = &item{
 			Line:    nil,
 			RWMutex: &sync.RWMutex{},
 			chip:    c,
@@ -137,8 +138,9 @@ func (c *chip) RequestItem(offset int, opts ...ItemOption) (Item, error) {
 	}
 
 	i.Lock()
-	i.tgc.Add()
+	tgc := i.tgc
 	i.Unlock()
+	tgc.Add()
 
 	return i, nil
 }

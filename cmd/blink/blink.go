@@ -6,11 +6,12 @@ import (
 	"os"
 
 	"github.com/AliRostami1/baagh/pkg/controller/core"
+	"github.com/AliRostami1/baagh/pkg/signal"
 	"github.com/warthog618/gpiod"
 )
 
 func main() {
-	log.Print("Hello")
+	ctx, _ := signal.Gracefull()
 	chip, err := core.RequestChip(gpiod.Chips()[0])
 	if err != nil {
 		log.Fatal(err)
@@ -37,4 +38,5 @@ func main() {
 		}
 	}()
 
+	<-ctx.Done()
 }
