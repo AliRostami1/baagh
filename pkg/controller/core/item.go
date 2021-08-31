@@ -1,6 +1,7 @@
 package core
 
 import (
+	"fmt"
 	"sync"
 
 	"github.com/AliRostami1/baagh/pkg/tgc"
@@ -75,8 +76,11 @@ func (i *item) tgcHandler(b bool) {
 
 func (i *item) SetState(state State) (err error) {
 	i.Lock()
-	iState := i.state
+	if i.Line == nil {
+		return fmt.Errorf("line doesnt exist")
+	}
 	line := i.Line
+	iState := i.state
 	i.Unlock()
 	if iState == state {
 		return
