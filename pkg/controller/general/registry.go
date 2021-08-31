@@ -62,22 +62,22 @@ func (t TagNotFoundError) Error() string {
 }
 
 type itemRegistry struct {
-	registry map[string]map[int]*core.Item
+	registry map[string]map[int]core.Item
 	*sync.RWMutex
 }
 
-func (i *itemRegistry) Add(chip string, offset int, item *core.Item) error {
+func (i *itemRegistry) Add(chip string, offset int, item core.Item) error {
 	i.Lock()
 	reg := i.registry
 	i.Unlock()
 	if _, ok := reg[chip]; !ok {
-		reg[chip] = make(map[int]*core.Item)
+		reg[chip] = make(map[int]core.Item)
 	}
 	reg[chip][offset] = item
 	return nil
 }
 
-func (i *itemRegistry) Get(chip string, offset int) (*core.Item, error) {
+func (i *itemRegistry) Get(chip string, offset int) (core.Item, error) {
 	i.Lock()
 	reg := i.registry
 	i.Unlock()
@@ -90,7 +90,7 @@ func (i *itemRegistry) Get(chip string, offset int) (*core.Item, error) {
 	return nil, ItemNotFoundError{Chip: chip, Offset: offset}
 }
 
-func (i *itemRegistry) ForEach(fn func(i *core.Item)) {
+func (i *itemRegistry) ForEach(fn func(i core.Item)) {
 	i.Lock()
 	reg := i.registry
 	i.Unlock()

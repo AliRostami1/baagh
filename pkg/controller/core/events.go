@@ -2,27 +2,27 @@ package core
 
 import "sync"
 
-type EventChannel = chan ItemEvent
+type EventChannel = <-chan *ItemEvent
 
 type eventRegistry struct {
-	events []EventChannel
+	events []chan *ItemEvent
 	*sync.RWMutex
 }
 
 func newEventRegistry() *eventRegistry {
 	return &eventRegistry{
-		events:  []chan ItemEvent{},
+		events:  []chan *ItemEvent{},
 		RWMutex: &sync.RWMutex{},
 	}
 }
 
-func (e *eventRegistry) Add(ch EventChannel) {
+func (e *eventRegistry) Add(ch chan *ItemEvent) {
 	e.Lock()
 	defer e.Unlock()
 	e.events = append(e.events, ch)
 }
 
-func (e *eventRegistry) Remove(ch EventChannel) {
+func (e *eventRegistry) Remove(ch chan *ItemEvent) {
 	e.Lock()
 	defer e.Unlock()
 	for i, channel := range e.events {
@@ -33,7 +33,7 @@ func (e *eventRegistry) Remove(ch EventChannel) {
 	}
 }
 
-func (e *eventRegistry) ForEach(cb func(index int, ch EventChannel)) {
+func (e *eventRegistry) ForEach(cb func(index int, ch chan *ItemEvent)) {
 	e.Lock()
 	defer e.Unlock()
 	for index, ch := range e.events {
@@ -41,7 +41,7 @@ func (e *eventRegistry) ForEach(cb func(index int, ch EventChannel)) {
 	}
 }
 
-func (e *eventRegistry) CallAll(evt ItemEvent) {
+func (e *eventRegistry) CallAll(evt *ItemEvent) {
 	go func() {
 		e.Lock()
 		events := e.events

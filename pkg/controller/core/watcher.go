@@ -1,25 +1,25 @@
 package core
 
 import (
-	"github.com/warthog618/gpiod"
 	"go.uber.org/multierr"
 )
 
 type ItemEvent struct {
-	gpiod.LineEvent
+	ItemInfo
 }
 
 type Watcher interface {
-	Watch() <-chan ItemEvent
+	Closer
+	Watch() <-chan *ItemEvent
 }
 
 type watcher struct {
 	item         *item
 	chip         *chip
-	eventChannel chan ItemEvent
+	eventChannel chan *ItemEvent
 }
 
-func (w *watcher) Watch() <-chan ItemEvent {
+func (w *watcher) Watch() <-chan *ItemEvent {
 	return w.eventChannel
 }
 

@@ -37,7 +37,7 @@ func main() {
 		input := bufio.NewScanner(os.Stdin)
 		for input.Scan() {
 			if input.Text() == "turn off" {
-				alarm.TurnOff()
+				alarm.SetState(core.Inactive)
 			}
 		}
 	}()

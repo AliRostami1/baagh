@@ -8,6 +8,8 @@ import (
 )
 
 type ItemInfo struct {
+	gpiod.LineInfo
+	Item
 }
 
 type Item interface {
@@ -15,7 +17,7 @@ type Item interface {
 	NewWatcher() (Watcher, error)
 	SetState(State) error
 	State() State
-	Info() ItemInfo
+	Info() (*ItemInfo, error)
 }
 
 type item struct {
@@ -97,8 +99,11 @@ func (i *item) SetState(state State) (err error) {
 	// events.CallAll(&ItemEvent{
 	// 	item: i,
 	// })
-	itemEvents.CallAll(ItemEvent{
-		// LineEvent: i,
+	itemEvents.CallAll(&ItemEvent{
+		ItemInfo: ItemInfo{
+			LineInfo: info,
+			Item:     i,
+		},
 	})
 	logger.Debugf("state changed to %s on line %o of chip %s", state, line.Offset(), line.Chip())
 	return
@@ -110,8 +115,15 @@ func (i *item) State() State {
 	return i.state
 }
 
-func (i *item) Info() ItemInfo {
-	return ItemInfo{}
+func (i *item) Info() (*ItemInfo, error) {
+	li, err := i.Line.Info()
+	if err != nil {
+		return nil, err
+	}
+	return &ItemInfo{
+		LineInfo: li,
+		Item:     i,
+	}, nil
 }
 
 func (i *item) NewWatcher() (Watcher, error) {
@@ -123,7 +135,7 @@ func (i *item) NewWatcher() (Watcher, error) {
 	w := &watcher{
 		item:         i,
 		chip:         chip,
-		eventChannel: make(chan ItemEvent),
+		eventChannel: make(chan *ItemEvent),
 	}
 
 	i.Lock()
@@ -134,7 +146,7 @@ func (i *item) NewWatcher() (Watcher, error) {
 	return w, nil
 }
 
-func (i *item) removeWatcher(ch EventChannel) {
+func (i *item) removeWatcher(ch chan *ItemEvent) {
 	i.Lock()
 	ev := i.events
 	i.Unlock()
