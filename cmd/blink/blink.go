@@ -16,13 +16,22 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	defer chip.Close()
 	log.Print("chip registered")
 
 	led, err := chip.RequestItem(10, core.AsOutput(core.Inactive))
 	if err != nil {
 		log.Fatal(err)
 	}
+	defer led.Close()
 	log.Print("led registered")
+
+	ledWatcher, err := led.NewWatcher()
+	if err != nil {
+		log.Fatal(err)
+	}
+	log.Print("led-watcher registered")
+	defer ledWatcher.Close()
 
 	go func() {
 		log.Print("type on/off")
@@ -35,6 +44,12 @@ func main() {
 				log.Print("turning led on")
 				led.SetState(core.Inactive)
 			}
+		}
+	}()
+
+	go func() {
+		for ie := range ledWatcher.Watch() {
+			log.Printf("%#v", ie)
 		}
 	}()
 
