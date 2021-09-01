@@ -40,7 +40,7 @@ func (i *item) tgcHandler(b bool) {
 	i.Unlock()
 	if b {
 		switch options.mode {
-		case Input:
+		case ModeInput:
 			l, err := chip.RequestLine(offset, gpiod.AsInput, gpiod.WithEventHandler(i.eventHandler), gpiod.WithBothEdges)
 			if err != nil {
 				logger.Errorf("requestLine failed: %v", err)
@@ -48,7 +48,7 @@ func (i *item) tgcHandler(b bool) {
 			i.Lock()
 			i.Line = l
 			i.Unlock()
-		case Output:
+		case ModeOutput:
 			l, err := chip.RequestLine(offset, gpiod.AsOutput(int(options.state)))
 			if err != nil {
 				logger.Errorf("requestLine failed: %v", err)
@@ -72,9 +72,9 @@ func (i *item) tgcHandler(b bool) {
 func (i *item) eventHandler(evt gpiod.LineEvent) {
 	switch evt.Type {
 	case gpiod.LineEventRisingEdge:
-		i.setState(Active)
+		i.setState(StateActive)
 	case gpiod.LineEventFallingEdge:
-		i.setState(Inactive)
+		i.setState(StateInactive)
 	}
 	i.eventEmmiter(&evt)
 }
@@ -215,7 +215,7 @@ func (i *item) cleanup() (err error) {
 	i.Unlock()
 
 	c.items.Delete(line.Offset())
-	i.setState(Inactive)
+	i.setState(StateInactive)
 	line.Close()
 	i = nil
 	logger.Infof("cleaned up item %o of %s", line.Offset(), line.Chip())

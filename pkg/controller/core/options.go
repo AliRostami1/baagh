@@ -45,7 +45,7 @@ func (i InputOption) applyItemOption(item *ItemOptions) (err error) {
 	if err = i.pull.Check(); err != nil {
 		return errprim.OptionError{Field: "pull", Value: i.pull}
 	}
-	item.mode = Input
+	item.mode = ModeInput
 	item.pull = i.pull
 	return nil
 }
@@ -65,7 +65,7 @@ func (o OutputOption) applyItemOption(item *ItemOptions) (err error) {
 		return
 	}
 	item.state = o.state
-	item.mode = Output
+	item.mode = ModeOutput
 	return
 }
 

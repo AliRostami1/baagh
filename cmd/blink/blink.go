@@ -23,7 +23,7 @@ func main() {
 	}
 	core.SetLogger(logger)
 
-	led, err := core.RequestItem(gpiod.Chips()[0], 10, core.AsOutput(core.Inactive))
+	led, err := core.RequestItem(gpiod.Chips()[0], 10, core.AsOutput(core.StateInactive))
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -43,13 +43,13 @@ func main() {
 		for input.Scan() {
 			if input.Text() == "on" {
 				log.Print("turning led off")
-				err = led.SetState(core.Active)
+				err = led.SetState(core.StateActive)
 				if err != nil {
 					log.Fatal(err)
 				}
 			} else if input.Text() == "off" {
 				log.Print("turning led on")
-				err = led.SetState(core.Inactive)
+				err = led.SetState(core.StateInactive)
 				if err != nil {
 					log.Fatal(err)
 				}

@@ -41,7 +41,7 @@ func Register(tag string, opts ...Option) (g *General, err error) {
 	}
 
 	g = &General{
-		state:     core.Inactive,
+		state:     core.StateInactive,
 		sensors:   &itemRegistry{registry: map[string]map[int]core.Item{}, RWMutex: &sync.RWMutex{}},
 		actuators: &itemRegistry{registry: map[string]map[int]core.Item{}, RWMutex: &sync.RWMutex{}},
 		active:    true,
@@ -62,9 +62,9 @@ func Register(tag string, opts ...Option) (g *General, err error) {
 		}
 	}
 
-	initalState := core.Inactive
+	initalState := core.StateInactive
 	if options.kind == RSync {
-		initalState = core.Active
+		initalState = core.StateActive
 	}
 	g.SetState(initalState)
 
@@ -146,7 +146,7 @@ func (g *General) AddSensor(gpioName string, tag string, offsets []int) (err err
 
 func (g *General) AddActuator(gpioName string, tag string, offsets []int) (err error) {
 	for _, offset := range offsets {
-		i, err := core.RequestItem(gpioName, offset, core.AsOutput(core.Inactive))
+		i, err := core.RequestItem(gpioName, offset, core.AsOutput(core.StateInactive))
 		if err != nil {
 			return err
 		}
@@ -155,14 +155,14 @@ func (g *General) AddActuator(gpioName string, tag string, offsets []int) (err e
 	return
 }
 
-func (g *General) SetActive(a bool) {
+func (g *General) SetStateActive(a bool) {
 	g.active = a
 }
 
 func (g *General) AlarmHandler(ch core.EventChannel) {
 	for ie := range ch {
-		if ie.Info.State == core.Active {
-			g.SetState(core.Active)
+		if ie.Info.State == core.StateActive {
+			g.SetState(core.StateActive)
 		}
 	}
 }
@@ -174,14 +174,14 @@ func (g *General) SyncHandlerAllIn(ch core.EventChannel) {
 		g.Unlock()
 		allIn := true
 		sensors.ForEach(func(i core.Item) {
-			if i.State() == core.Inactive {
+			if i.State() == core.StateInactive {
 				allIn = false
 			}
 		})
 		if allIn {
-			g.SetState(core.Active)
+			g.SetState(core.StateActive)
 		} else {
-			g.SetState(core.Inactive)
+			g.SetState(core.StateInactive)
 		}
 	}
 }
@@ -193,14 +193,14 @@ func (g *General) SyncHandlerOneIn(ch core.EventChannel) {
 		g.Unlock()
 		oneIn := false
 		sensors.ForEach(func(i core.Item) {
-			if i.State() == core.Active {
+			if i.State() == core.StateActive {
 				oneIn = true
 			}
 		})
 		if oneIn {
-			g.SetState(core.Active)
+			g.SetState(core.StateActive)
 		} else {
-			g.SetState(core.Inactive)
+			g.SetState(core.StateInactive)
 		}
 	}
 }
@@ -212,14 +212,14 @@ func (g *General) RSyncHandlerAllIn(ch core.EventChannel) {
 		g.Unlock()
 		allIn := true
 		sensors.ForEach(func(i core.Item) {
-			if i.State() == core.Active {
+			if i.State() == core.StateActive {
 				allIn = false
 			}
 		})
 		if allIn {
-			g.SetState(core.Active)
+			g.SetState(core.StateActive)
 		} else {
-			g.SetState(core.Inactive)
+			g.SetState(core.StateInactive)
 		}
 	}
 }
@@ -231,14 +231,14 @@ func (g *General) RSyncHandlerOneIn(ch core.EventChannel) {
 		g.Unlock()
 		oneIn := false
 		sensors.ForEach(func(i core.Item) {
-			if i.State() == core.Inactive {
+			if i.State() == core.StateInactive {
 				oneIn = true
 			}
 		})
 		if oneIn {
-			g.SetState(core.Active)
+			g.SetState(core.StateActive)
 		} else {
-			g.SetState(core.Inactive)
+			g.SetState(core.StateInactive)
 		}
 	}
 }

@@ -7,15 +7,15 @@ import (
 type State int
 
 const (
-	Inactive State = iota
-	Active
+	StateInactive State = iota
+	StateActive
 )
 
 func (s State) String() string {
 	switch s {
-	case Active:
+	case StateActive:
 		return "active"
-	case Inactive:
+	case StateInactive:
 		return "inactive"
 	default:
 		return ""
@@ -23,7 +23,7 @@ func (s State) String() string {
 }
 
 func (s State) Check() error {
-	if s == Active || s == Inactive {
+	if s == StateActive || s == StateInactive {
 		return nil
 	}
 	return InvalidStateError{}
@@ -32,22 +32,22 @@ func (s State) Check() error {
 type InvalidStateError struct{}
 
 func (u InvalidStateError) Error() string {
-	return fmt.Sprintf("state can't be any value other than %s and %s", Active, Inactive)
+	return fmt.Sprintf("state can't be any value other than %s and %s", StateActive, StateInactive)
 }
 
 type Mode int
 
 const (
 	_ Mode = iota
-	Input
-	Output
+	ModeInput
+	ModeOutput
 )
 
 func (m Mode) String() string {
 	switch m {
-	case Input:
+	case ModeInput:
 		return "input"
-	case Output:
+	case ModeOutput:
 		return "output"
 	default:
 		return ""
@@ -55,7 +55,7 @@ func (m Mode) String() string {
 }
 
 func (m Mode) Check() error {
-	if m == Input || m == Output {
+	if m == ModeInput || m == ModeOutput {
 		return nil
 	}
 	return InvalidModeError{}
@@ -64,7 +64,7 @@ func (m Mode) Check() error {
 type InvalidModeError struct{}
 
 func (u InvalidModeError) Error() string {
-	return fmt.Sprintf("mode can't be any value other than %s and %s", Output, Input)
+	return fmt.Sprintf("mode can't be any value other than %s and %s", ModeOutput, ModeInput)
 }
 
 type Pull int
@@ -101,5 +101,5 @@ func (p Pull) Check() error {
 type InvalidPullError struct{}
 
 func (i InvalidPullError) Error() string {
-	return fmt.Sprintf("mode can't be any value other than %s and %s", Output, Input)
+	return fmt.Sprintf("mode can't be any value other than %s and %s", ModeOutput, ModeInput)
 }
