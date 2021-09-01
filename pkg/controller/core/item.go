@@ -35,10 +35,8 @@ type item struct {
 func (i *item) tgcHandler(b bool) {
 	// TODO: we are ignoring error here, fix it!
 	i.Lock()
-	offset := i.offset
-	chip := i.chip
-	defer i.Unlock()
-	options := i.options
+	offset, chip, options := i.offset, i.chip, i.options
+	i.Unlock()
 	if b {
 		switch options.mode {
 		case Input:
@@ -50,17 +48,21 @@ func (i *item) tgcHandler(b bool) {
 					i.SetState(Inactive)
 				}
 			}
-			l, _ := chip.RequestLine(offset, gpiod.AsInput, gpiod.WithEventHandler(handler), gpiod.WithBothEdges)
-			// if err != nil {
-			// 	return
-			// }
+			l, err := chip.RequestLine(offset, gpiod.AsInput, gpiod.WithEventHandler(handler), gpiod.WithBothEdges)
+			if err != nil {
+				logger.Errorf("requestLine failed: %v", err)
+			}
+			i.Lock()
 			i.Line = l
+			i.Unlock()
 		case Output:
-			l, _ := chip.RequestLine(offset, gpiod.AsOutput(int(options.state)))
-			// if err != nil {
-			// 	return nil, err
-			// }
+			l, err := chip.RequestLine(offset, gpiod.AsOutput(int(options.state)))
+			if err != nil {
+				logger.Errorf("requestLine failed: %v", err)
+			}
+			i.Lock()
 			i.Line = l
+			i.Unlock()
 		default:
 			return
 			// return nil, fmt.Errorf("you have to set the mode")
@@ -159,8 +161,9 @@ func (i *item) removeWatcher(ch chan *ItemEvent) {
 
 func (i *item) Close() error {
 	i.Lock()
-	i.tgc.Delete()
+	tgc := i.tgc
 	i.Unlock()
+	tgc.Delete()
 	return nil
 }
 

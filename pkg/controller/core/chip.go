@@ -151,8 +151,9 @@ func (c *chip) Info() (ChipInfo, error) {
 
 func (c *chip) Used() bool {
 	c.Lock()
-	defer c.Unlock()
-	return c.tgc.State()
+	tgc := c.tgc
+	c.Unlock()
+	return tgc.State()
 }
 
 func (c *chip) GetItem(offset int) (Item, error) {
@@ -167,8 +168,9 @@ func (c *chip) getItem(offset int) (i *item, err error) {
 
 func (c *chip) Close() error {
 	c.Lock()
-	defer c.Unlock()
-	c.tgc.Delete()
+	tgc := c.tgc
+	c.Unlock()
+	tgc.Delete()
 	return nil
 }
 
