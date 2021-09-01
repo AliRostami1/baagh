@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/AliRostami1/baagh/pkg/controller/core"
-	"github.com/warthog618/gpiod"
 )
 
 const (
@@ -37,19 +36,20 @@ type Transmitter struct {
 // NewTransmitter creates a Transmitter which attaches to the chip's pin at
 // offset.
 func NewTransmitter(chip string, offset int, options ...TransmitterOption) (*Transmitter, error) {
-	pin, err := chip.RequestLine(offset, gpiod.AsOutput(0))
+	i, err := core.RequestItem(chip, offset, core.AsOutput(core.StateInactive))
 	if err != nil {
 		return nil, err
 	}
 
-	return NewPinTransmitter(pin, options...), nil
+	return NewPinTransmitter(i, options...), nil
 }
 
 // NewPinTransmitter creates a *Transmitter that sends on pin.
-func NewPinTransmitter(pin OutputPin, options ...TransmitterOption) *Transmitter {
+func NewPinTransmitter(item core.Item, options ...TransmitterOption) *Transmitter {
 	t := &Transmitter{
-		pin:               pin,
+		item:              item,
 		transmission:      make(chan transmission, transmissionChanLen),
+		closed:            0,
 		transmissionCount: DefaultTransmissionCount,
 		delay:             delay,
 	}
@@ -110,7 +110,7 @@ func (t *Transmitter) transmit(trans transmission) {
 func (t *Transmitter) Close() error {
 	atomic.StoreInt32(&t.closed, 0)
 	close(t.transmission)
-	return t.pin.Close()
+	return t.item.Close()
 }
 
 // watch listens on a channel and processes incoming transmissions.
@@ -122,13 +122,8 @@ func (t *Transmitter) watch() {
 
 // send sends a sequence of high and low pulses on the gpio pin.
 func (t *Transmitter) send(pulses HighLow, pulseLength uint) {
-	t.pin.SetValue(1)
+	t.item.SetState(core.StateActive)
 	t.delay(time.Microsecond * time.Duration(pulseLength*pulses.High))
-	t.pin.SetValue(0)
+	t.item.SetState(core.StateInactive)
 	t.delay(time.Microsecond * time.Duration(pulseLength*pulses.Low))
-}
-
-// NewDiscardingTransmitter creates a *Transmitter that does not send anything.
-func NewDiscardingTransmitter() *Transmitter {
-	return NewPinTransmitter(&FakeOutputPin{})
 }

@@ -13,9 +13,8 @@ import (
 )
 
 func main() {
-	ctx, _ := signal.Gracefull()
-
 	defer core.Close()
+	ctx, _ := signal.Gracefull()
 
 	logger, err := logy.New(ctx, zapcore.DebugLevel)
 	if err != nil {
@@ -30,7 +29,7 @@ func main() {
 	// defer led.Close()
 	log.Print("led registered")
 
-	ledWatcher, err := led.NewWatcher()
+	ledWatcher, err := core.NewWatcher(gpiod.Chips()[0], 10)
 	if err != nil {
 		log.Fatal(err)
 	}

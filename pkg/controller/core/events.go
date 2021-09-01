@@ -1,6 +1,17 @@
 package core
 
-import "sync"
+import (
+	"sync"
+
+	"github.com/warthog618/gpiod"
+)
+
+type ItemEvent struct {
+	Info        *ItemInfo
+	Item        Item
+	IsLineEvent bool
+	*gpiod.LineEvent
+}
 
 type EventChannel = <-chan *ItemEvent
 

@@ -156,13 +156,31 @@ func NewWatcher(chipName string, offset int) (Watcher, error) {
 	}
 
 	i.Lock()
-	chip := i.chip
 	ev := i.events
 	i.Unlock()
 
 	w := &watcher{
 		item:         i,
-		chip:         chip,
+		eventChannel: make(chan *ItemEvent),
+	}
+
+	ev.Add(w.eventChannel)
+
+	return w, nil
+}
+
+func NewInputWatcher(chipName string, offset int) (Watcher, error) {
+	i, err := requestItem(chipName, offset, AsInput(PullDown))
+	if err != nil {
+		return nil, err
+	}
+
+	i.Lock()
+	ev := i.events
+	i.Unlock()
+
+	w := &watcher{
+		item:         i,
 		eventChannel: make(chan *ItemEvent),
 	}
 
@@ -181,4 +199,8 @@ func Close() (err error) {
 		logger.Infof("gpio core is successfully cleanedup")
 	}
 	return
+}
+
+func Chips() []string {
+	return gpiod.Chips()
 }

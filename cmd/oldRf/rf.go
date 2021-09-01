@@ -9,72 +9,62 @@ import (
 	"strconv"
 	"syscall"
 
-	"github.com/AliRostami1/baagh/pkg/controller/core"
-	"github.com/AliRostami1/baagh/pkg/controller/rf"
-	"github.com/AliRostami1/baagh/pkg/logy"
+	"github.com/martinohmann/rfoutlet/pkg/gpio"
 	"github.com/warthog618/gpiod"
-	"go.uber.org/zap/zapcore"
 )
 
 const (
-	Open  = 0xdea928
-	Close = 0xdea921
+	Open  = 0xdea921
+	Close = 0xdea928
 )
 
 func main() {
 	ctx, _ := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
-	logger, err := logy.New(ctx, zapcore.DebugLevel)
+
+	chip, err := gpiod.NewChip(gpiod.Chips()[0])
 	if err != nil {
-		log.Print(err)
+		log.Fatalf("chip failed: %v", err)
 	}
-	core.SetLogger(logger)
+	defer chip.Close()
 
-	chipName := gpiod.Chips()[0]
-
-	led, err := core.RequestItem(chipName, 10, core.AsOutput(core.StateInactive))
+	led, err := chip.RequestLine(10, gpiod.AsOutput(0))
 	if err != nil {
-		logger.Fatalf("led failed: %v", err)
+		log.Fatalf("led failed: %v", err)
 	}
 	defer led.Close()
-	logger.Info("led registered")
 
-	reciever, err := rf.NewReceiver(chipName, 27)
+	reciever, err := gpio.NewReceiver(chip, 27)
 	if err != nil {
 		log.Fatalf("reciever failed: %v", err)
 	}
 	defer reciever.Close()
-	logger.Info("reciever registered")
 
-	transmitter, err := rf.NewTransmitter(chipName, 17)
+	transmitter, err := gpio.NewTransmitter(chip, 17)
 	if err != nil {
 		log.Fatalf("transmitter failed: %v", err)
 	}
 	defer transmitter.Close()
-	logger.Info("transmitter registered")
 
 	go func() {
-		logger.Info("ready to recieve signals")
 		for c := range reciever.Receive() {
 			log.Printf("Signal Recieved: %#v", c)
 			if c.Code == Open {
-				led.SetState(core.StateActive)
+				led.SetValue(1)
 			} else if c.Code == Close {
-				led.SetState(core.StateInactive)
+				led.SetValue(0)
 			}
 		}
 	}()
 
 	go func() {
 		input := bufio.NewScanner(os.Stdin)
-		logger.Info("ready to send signals")
-		// transmitter.Transmit(131564, rf.DefaultProtocols[0], 350)
 		for input.Scan() {
 			code, err := strconv.ParseUint(input.Text(), 10, 64)
 			if err != nil {
 				log.Print("ERROR: can't parse the code: ", err)
 				continue
 			}
-			confirm := transmitter.Transmit(code, rf.DefaultProtocols[0], 350)
+			confirm := transmitter.Transmit(code, gpio.DefaultProtocols[0], 350)
 			<-confirm
 			log.Printf("Signal Sent: %#v", code)
 		}

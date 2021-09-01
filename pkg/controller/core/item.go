@@ -16,7 +16,6 @@ type ItemInfo struct {
 
 type Item interface {
 	Closer
-	NewWatcher() (Watcher, error)
 	SetState(State) error
 	State() State
 	Info() (*ItemInfo, error)
@@ -41,7 +40,18 @@ func (i *item) tgcHandler(b bool) {
 	if b {
 		switch options.mode {
 		case ModeInput:
-			l, err := chip.RequestLine(offset, gpiod.AsInput, gpiod.WithEventHandler(i.eventHandler), gpiod.WithBothEdges)
+			var (
+				l   *gpiod.Line
+				err error
+			)
+			switch options.pull {
+			case PullDisabled, PullUnknown:
+				l, err = chip.RequestLine(offset, gpiod.AsInput, gpiod.WithEventHandler(i.eventHandler), gpiod.WithBothEdges)
+			case PullDown:
+				l, err = chip.RequestLine(offset, gpiod.AsInput, gpiod.WithEventHandler(i.eventHandler), gpiod.WithBothEdges, gpiod.WithPullDown)
+			case PullUp:
+				l, err = chip.RequestLine(offset, gpiod.AsInput, gpiod.WithEventHandler(i.eventHandler), gpiod.WithBothEdges, gpiod.WithPullUp)
+			}
 			if err != nil {
 				logger.Errorf("requestLine failed: %v", err)
 			}
@@ -70,12 +80,20 @@ func (i *item) tgcHandler(b bool) {
 }
 
 func (i *item) eventHandler(evt gpiod.LineEvent) {
+	var newState State
 	switch evt.Type {
 	case gpiod.LineEventRisingEdge:
-		i.setState(StateActive)
+		newState = StateActive
 	case gpiod.LineEventFallingEdge:
-		i.setState(StateInactive)
+		newState = StateInactive
 	}
+	i.Lock()
+	if i.state == newState {
+		i.Unlock()
+		return
+	}
+	i.Unlock()
+	i.setState(newState)
 	i.eventEmmiter(&evt)
 }
 
@@ -169,26 +187,6 @@ func (i *item) Pull() Pull {
 	i.Lock()
 	defer i.Unlock()
 	return i.options.pull
-}
-
-func (i *item) NewWatcher() (Watcher, error) {
-	chip, err := getChip(i.Chip())
-	if err != nil {
-		return nil, err
-	}
-
-	w := &watcher{
-		item:         i,
-		chip:         chip,
-		eventChannel: make(chan *ItemEvent),
-	}
-
-	i.Lock()
-	ev := i.events
-	i.Unlock()
-	ev.Add(w.eventChannel)
-
-	return w, nil
 }
 
 func (i *item) removeWatcher(ch chan *ItemEvent) {

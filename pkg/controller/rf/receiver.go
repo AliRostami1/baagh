@@ -30,15 +30,7 @@ type Receiver struct {
 // NewReceiver creates a *Receiver which listens on the chip's pin at offset
 // for rf codes.
 func NewReceiver(chip string, offset int, options ...ReceiverOption) (*Receiver, error) {
-	c, err := core.RequestChip(chip)
-	if err != nil {
-		return nil, err
-	}
-	item, err := c.RequestItem(offset)
-	if err != nil {
-		return nil, err
-	}
-	watcher, err := item.NewWatcher()
+	watcher, err := core.NewInputWatcher(chip, offset)
 	if err != nil {
 		return nil, err
 	}
@@ -70,9 +62,11 @@ func (r *Receiver) watch() {
 	var lastEventType gpiod.LineEventType
 
 	for evt := range r.watcher.Watch() {
-		if lastEventType != evt.Type {
-			r.handleEvent(evt)
-			lastEventType = evt.Type
+		if evt.IsLineEvent {
+			if lastEventType != evt.LineEvent.Type {
+				r.handleEvent(evt)
+				lastEventType = evt.LineEvent.Type
+			}
 		}
 	}
 }
