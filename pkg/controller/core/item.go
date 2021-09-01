@@ -1,7 +1,6 @@
 package core
 
 import (
-	"fmt"
 	"sync"
 
 	"github.com/AliRostami1/baagh/pkg/tgc"
@@ -9,8 +8,10 @@ import (
 )
 
 type ItemInfo struct {
-	gpiod.LineInfo
-	Item
+	*gpiod.LineInfo
+	State State
+	Mode  Mode
+	Pull  Pull
 }
 
 type Item interface {
@@ -40,15 +41,7 @@ func (i *item) tgcHandler(b bool) {
 	if b {
 		switch options.mode {
 		case Input:
-			handler := func(evt gpiod.LineEvent) {
-				switch evt.Type {
-				case gpiod.LineEventRisingEdge:
-					i.SetState(Active)
-				case gpiod.LineEventFallingEdge:
-					i.SetState(Inactive)
-				}
-			}
-			l, err := chip.RequestLine(offset, gpiod.AsInput, gpiod.WithEventHandler(handler), gpiod.WithBothEdges)
+			l, err := chip.RequestLine(offset, gpiod.AsInput, gpiod.WithEventHandler(i.eventHandler), gpiod.WithBothEdges)
 			if err != nil {
 				logger.Errorf("requestLine failed: %v", err)
 			}
@@ -76,18 +69,54 @@ func (i *item) tgcHandler(b bool) {
 	}
 }
 
-func (i *item) SetState(state State) (err error) {
-	i.Lock()
-	if i.Line == nil {
-		return fmt.Errorf("line doesnt exist")
+func (i *item) eventHandler(evt gpiod.LineEvent) {
+	switch evt.Type {
+	case gpiod.LineEventRisingEdge:
+		i.setState(Active)
+	case gpiod.LineEventFallingEdge:
+		i.setState(Inactive)
 	}
+	i.eventEmmiter(&evt)
+}
+
+func (i *item) eventEmmiter(evt *gpiod.LineEvent) error {
+	i.Lock()
+	itemEvents := i.events
+	i.Unlock()
+	info, err := i.Info()
+	if err != nil {
+		return err
+	}
+
+	// events.CallAll(&ItemEvent{
+	// 	item: i,
+	// })
+	itemEvents.CallAll(&ItemEvent{
+		Info:        info,
+		Item:        i,
+		IsLineEvent: evt != nil,
+		LineEvent:   evt,
+	})
+	return nil
+}
+
+func (i *item) SetState(state State) (err error) {
+	err = i.setState(state)
+	if err != nil {
+		return
+	}
+	return i.eventEmmiter(nil)
+}
+
+func (i *item) setState(state State) (err error) {
+	i.Lock()
 	line := i.Line
 	iState := i.state
 	i.Unlock()
 	if iState == state {
 		return
 	}
-	info, err := line.Info()
+	info, err := i.Info()
 	if err != nil {
 		return
 	}
@@ -99,18 +128,8 @@ func (i *item) SetState(state State) (err error) {
 	}
 	i.Lock()
 	i.state = state
-	itemEvents := i.events
 	i.Unlock()
 
-	// events.CallAll(&ItemEvent{
-	// 	item: i,
-	// })
-	itemEvents.CallAll(&ItemEvent{
-		ItemInfo: ItemInfo{
-			LineInfo: info,
-			Item:     i,
-		},
-	})
 	logger.Debugf("state changed to %s on line %o of chip %s", state, line.Offset(), line.Chip())
 	return
 }
@@ -122,14 +141,30 @@ func (i *item) State() State {
 }
 
 func (i *item) Info() (*ItemInfo, error) {
+	i.Lock()
 	li, err := i.Line.Info()
+	i.Unlock()
 	if err != nil {
 		return nil, err
 	}
 	return &ItemInfo{
-		LineInfo: li,
-		Item:     i,
+		LineInfo: &li,
+		State:    i.State(),
+		Mode:     i.Mode(),
+		Pull:     i.Pull(),
 	}, nil
+}
+
+func (i *item) Mode() Mode {
+	i.Lock()
+	defer i.Unlock()
+	return i.options.mode
+}
+
+func (i *item) Pull() Pull {
+	i.Lock()
+	defer i.Unlock()
+	return i.options.pull
 }
 
 func (i *item) NewWatcher() (Watcher, error) {

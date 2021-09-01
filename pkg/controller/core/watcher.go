@@ -1,11 +1,15 @@
 package core
 
 import (
+	"github.com/warthog618/gpiod"
 	"go.uber.org/multierr"
 )
 
 type ItemEvent struct {
-	ItemInfo
+	Info        *ItemInfo
+	Item        Item
+	IsLineEvent bool
+	*gpiod.LineEvent
 }
 
 type Watcher interface {
