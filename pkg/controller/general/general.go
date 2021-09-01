@@ -13,7 +13,7 @@ var general = registry{
 }
 
 type GeneralI interface {
-	Close() error
+	core.Closer
 	Register(tag string, opts ...Option) (g *General, err error)
 	State() core.State
 }
@@ -67,6 +67,11 @@ func Register(tag string, opts ...Option) (g *General, err error) {
 		initalState = core.Active
 	}
 	g.SetState(initalState)
+
+	err = g.handle()
+	if err != nil {
+		return nil, err
+	}
 
 	return
 }
@@ -156,7 +161,7 @@ func (g *General) SetActive(a bool) {
 
 func (g *General) AlarmHandler(ch core.EventChannel) {
 	for ie := range ch {
-		if ie.State() == core.Active {
+		if ie.Info.State == core.Active {
 			g.SetState(core.Active)
 		}
 	}
