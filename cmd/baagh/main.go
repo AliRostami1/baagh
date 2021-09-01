@@ -22,7 +22,6 @@ func main() {
 	chipName := gpiod.Chips()[0]
 
 	core.SetLogger(app.Log)
-	_, err = core.RequestChip(chipName)
 	if err != nil {
 		app.Log.Fatal(err)
 	}

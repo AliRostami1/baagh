@@ -1,7 +1,6 @@
 package core
 
 import (
-	"fmt"
 	"sync"
 
 	"github.com/AliRostami1/baagh/pkg/tgc"
@@ -11,16 +10,17 @@ import (
 
 var chips = newChipRegistry()
 
+// TODO: implement this
 type ChipInfo struct {
 }
 
-type Chip interface {
-	Closer
-	RequestItem(offset int, opts ...ItemOption) (Item, error)
-	Used() bool
-	Info() (ChipInfo, error)
-	GetItem(offset int) (Item, error)
-}
+// type Chip interface {
+// 	Closer
+// 	RequestItem(offset int, opts ...ItemOption) (Item, error)
+// 	Used() bool
+// 	Info() (ChipInfo, error)
+// 	GetItem(offset int) (Item, error)
+// }
 
 type chip struct {
 	*gpiod.Chip
@@ -28,43 +28,6 @@ type chip struct {
 	tgc   *tgc.Tgc
 	name  string
 	*sync.RWMutex
-}
-
-func RequestChip(name string) (Chip, error) {
-	c, err := getChip(name)
-
-	// if chip doesn't exits, create it
-	if _, ok := err.(ChipNotFoundError); ok {
-		c = &chip{
-			Chip:    nil,
-			items:   newItemRegistry(),
-			tgc:     nil,
-			name:    name,
-			RWMutex: &sync.RWMutex{},
-		}
-
-		var t *tgc.Tgc
-		t, err = tgc.New(c.tgcHandler)
-		if err != nil {
-			return nil, err
-		}
-		c.tgc = t
-
-		err = chips.Add(name, c)
-		if err != nil {
-			return nil, err
-		}
-
-		logger.Infof("chip %s registerd successfully by %s", name)
-	}
-
-	// if chip exist just add new owner to it
-	c.Lock()
-	tgc := c.tgc
-	c.Unlock()
-	tgc.Add()
-
-	return c, err
 }
 
 func (c *chip) tgcHandler(b bool) {
@@ -81,68 +44,6 @@ func (c *chip) tgcHandler(b bool) {
 		chips.Delete(c.name)
 		c.cleanup()
 	}
-}
-
-func (c *chip) RequestItem(offset int, opts ...ItemOption) (Item, error) {
-	c.Lock()
-	itemReg := c.items
-	c.Unlock()
-
-	// apply options
-	options := &ItemOptions{}
-	for _, io := range opts {
-		err := io.applyItemOption(options)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	i, err := itemReg.Get(offset)
-
-	if _, ok := err.(ItemNotFound); ok {
-		// item doesnt exist in registry so we'll create it
-		i = &item{
-			Line:    nil,
-			RWMutex: &sync.RWMutex{},
-			chip:    c,
-			state:   options.state,
-			offset:  offset,
-			events:  newEventRegistry(),
-			options: options,
-			tgc:     nil,
-		}
-
-		t, err := tgc.New(i.tgcHandler)
-		if err != nil {
-			return nil, err
-		}
-		i.tgc = t
-
-		err = itemReg.Add(offset, i)
-		if err != nil {
-			return nil, err
-		}
-
-		logger.Infof("item registerd on line %o as %s", offset, options.mode)
-	} else {
-		// already exits, check if its of the same line direction
-		i.Lock()
-		info, err := i.Line.Info()
-		i.Unlock()
-		if err != nil {
-			return nil, err
-		}
-		if info.Config.Direction != gpiod.LineDirection(options.mode) {
-			return nil, fmt.Errorf("this item is already registered as %s", Mode(info.Config.Direction))
-		}
-	}
-
-	i.Lock()
-	tgc := i.tgc
-	i.Unlock()
-	tgc.Add()
-
-	return i, nil
 }
 
 func (c *chip) Info() (ChipInfo, error) {
@@ -180,11 +81,8 @@ func (c *chip) cleanup() (err error) {
 	multierr.Append(err, c.Chip.Close())
 	chipName := c.Chip.Name
 	c.Unlock()
-	if err != nil {
-		logger.Errorf(err.Error())
-	}
 	ir.ForEach(func(offset int, i *item) {
-		err = multierr.Append(err, i.Close())
+		err = multierr.Append(err, i.cleanup())
 	})
 	if err != nil {
 		logger.Errorf(err.Error())

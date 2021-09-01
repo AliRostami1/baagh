@@ -101,6 +101,13 @@ func (i *item) eventEmmiter(evt *gpiod.LineEvent) error {
 }
 
 func (i *item) SetState(state State) (err error) {
+	i.Lock()
+	if i.state == state {
+		i.Unlock()
+		return
+	}
+	i.Unlock()
+
 	err = i.setState(state)
 	if err != nil {
 		return
@@ -111,11 +118,8 @@ func (i *item) SetState(state State) (err error) {
 func (i *item) setState(state State) (err error) {
 	i.Lock()
 	line := i.Line
-	iState := i.state
 	i.Unlock()
-	if iState == state {
-		return
-	}
+
 	info, err := i.Info()
 	if err != nil {
 		return
@@ -197,21 +201,21 @@ func (i *item) removeWatcher(ch chan *ItemEvent) {
 func (i *item) Close() error {
 	i.Lock()
 	tgc := i.tgc
+	chip := i.chip
 	i.Unlock()
 	tgc.Delete()
+	chip.Close()
 	return nil
 }
 
 func (i *item) cleanup() (err error) {
 	i.Lock()
 	line := i.Line
+	c := i.chip
 	i.Unlock()
-	c, err := getChip(line.Chip())
-	if err != nil {
-		return
-	}
+
 	c.items.Delete(line.Offset())
-	line.SetValue(int(Inactive))
+	i.setState(Inactive)
 	line.Close()
 	i = nil
 	logger.Infof("cleaned up item %o of %s", line.Offset(), line.Chip())

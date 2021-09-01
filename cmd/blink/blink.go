@@ -15,24 +15,19 @@ import (
 func main() {
 	ctx, _ := signal.Gracefull()
 
+	defer core.Close()
+
 	logger, err := logy.New(ctx, zapcore.DebugLevel)
 	if err != nil {
 		log.Fatal(err)
 	}
 	core.SetLogger(logger)
 
-	chip, err := core.RequestChip(gpiod.Chips()[0])
+	led, err := core.RequestItem(gpiod.Chips()[0], 10, core.AsOutput(core.Inactive))
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer chip.Close()
-	log.Print("chip registered")
-
-	led, err := chip.RequestItem(10, core.AsOutput(core.Inactive))
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer led.Close()
+	// defer led.Close()
 	log.Print("led registered")
 
 	ledWatcher, err := led.NewWatcher()
@@ -40,7 +35,7 @@ func main() {
 		log.Fatal(err)
 	}
 	log.Print("led-watcher registered")
-	defer ledWatcher.Close()
+	// defer ledWatcher.Close()
 
 	go func() {
 		log.Print("type on/off")
