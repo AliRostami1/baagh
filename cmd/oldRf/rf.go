@@ -19,6 +19,7 @@ const (
 )
 
 func main() {
+	log.Print("hello there")
 	ctx, _ := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
 
 	chip, err := gpiod.NewChip(gpiod.Chips()[0])
@@ -26,27 +27,32 @@ func main() {
 		log.Fatalf("chip failed: %v", err)
 	}
 	defer chip.Close()
+	log.Print("chip registered")
 
 	led, err := chip.RequestLine(10, gpiod.AsOutput(0))
 	if err != nil {
 		log.Fatalf("led failed: %v", err)
 	}
 	defer led.Close()
+	log.Print("led registered")
 
-	reciever, err := gpio.NewReceiver(chip, 27)
+	receiver, err := gpio.NewReceiver(chip, 27)
 	if err != nil {
 		log.Fatalf("reciever failed: %v", err)
 	}
-	defer reciever.Close()
+	defer receiver.Close()
+	log.Print("receiver registered")
 
 	transmitter, err := gpio.NewTransmitter(chip, 17)
 	if err != nil {
 		log.Fatalf("transmitter failed: %v", err)
 	}
 	defer transmitter.Close()
+	log.Print("transmitter registered")
 
 	go func() {
-		for c := range reciever.Receive() {
+		log.Print("ready to recieve signals")
+		for c := range receiver.Receive() {
 			log.Printf("Signal Recieved: %#v", c)
 			if c.Code == Open {
 				led.SetValue(1)
@@ -58,6 +64,7 @@ func main() {
 
 	go func() {
 		input := bufio.NewScanner(os.Stdin)
+		log.Print("ready to send signals")
 		for input.Scan() {
 			code, err := strconv.ParseUint(input.Text(), 10, 64)
 			if err != nil {

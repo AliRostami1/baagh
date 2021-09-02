@@ -14,14 +14,6 @@ var chips = newChipRegistry()
 type ChipInfo struct {
 }
 
-// type Chip interface {
-// 	Closer
-// 	RequestItem(offset int, opts ...ItemOption) (Item, error)
-// 	Used() bool
-// 	Info() (ChipInfo, error)
-// 	GetItem(offset int) (Item, error)
-// }
-
 type chip struct {
 	*gpiod.Chip
 	items *itemRegistry
@@ -65,6 +57,12 @@ func (c *chip) getItem(offset int) (i *item, err error) {
 	c.Lock()
 	defer c.Unlock()
 	return c.items.Get(offset)
+}
+
+func (c *chip) Name() string {
+	c.Lock()
+	defer c.Unlock()
+	return c.name
 }
 
 func (c *chip) Close() error {

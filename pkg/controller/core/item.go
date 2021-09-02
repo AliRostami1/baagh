@@ -189,6 +189,19 @@ func (i *item) Pull() Pull {
 	return i.options.pull
 }
 
+func (i *item) Offset() int {
+	i.Lock()
+	defer i.Unlock()
+	return i.offset
+}
+
+func (i *item) Chip() string {
+	i.Lock()
+	c := i.chip
+	i.Unlock()
+	return c.Name()
+}
+
 func (i *item) removeWatcher(ch chan *ItemEvent) {
 	i.Lock()
 	ev := i.events
@@ -208,14 +221,18 @@ func (i *item) Close() error {
 
 func (i *item) cleanup() (err error) {
 	i.Lock()
-	line := i.Line
-	c := i.chip
+	c, line, events := i.chip, i.Line, i.events
 	i.Unlock()
 
-	c.items.Delete(line.Offset())
+	// delete the item from chip's item registry
+	c.items.Delete(i.Offset())
+	// set it's state to inactive
 	i.setState(StateInactive)
-	line.Close()
-	i = nil
-	logger.Infof("cleaned up item %o of %s", line.Offset(), line.Chip())
-	return
+	// clear all event channels
+	events.Cleanup()
+
+	logger.Infof("cleaned up item %o of %s", i.Offset(), i.Chip())
+
+	// close the gpiod.Line
+	return line.Close()
 }

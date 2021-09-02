@@ -128,12 +128,7 @@ func (g *General) SetState(state core.State) {
 
 func (g *General) AddSensor(gpioName string, tag string, offsets []int) (err error) {
 	for _, offset := range offsets {
-		i, err := core.RequestItem(gpioName, offset, core.AsInput(core.PullDown), core.WithState(g.state))
-		if err != nil {
-			return err
-		}
-
-		watcher, err := i.NewWatcher()
+		watcher, err := core.NewWatcher(gpioName, offset, core.AsInput(core.PullDown), core.WithState(g.state))
 		if err != nil {
 			return err
 		}

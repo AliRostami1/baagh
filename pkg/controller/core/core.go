@@ -149,8 +149,8 @@ func SetState(chipName string, offset int, state State) (err error) {
 	return
 }
 
-func NewWatcher(chipName string, offset int) (Watcher, error) {
-	i, err := requestItem(chipName, offset)
+func NewWatcher(chipName string, offset int, opts ...ItemOption) (Watcher, error) {
+	i, err := requestItem(chipName, offset, opts...)
 	if err != nil {
 		return nil, err
 	}

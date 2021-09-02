@@ -52,6 +52,15 @@ func (e *eventRegistry) ForEach(cb func(index int, ch chan *ItemEvent)) {
 	}
 }
 
+func (e *eventRegistry) Cleanup() {
+	e.Lock()
+	defer e.Unlock()
+	for _, ch := range e.events {
+		close(ch)
+	}
+	e.events = e.events[:0]
+}
+
 func (e *eventRegistry) CallAll(evt *ItemEvent) {
 	go func() {
 		e.Lock()

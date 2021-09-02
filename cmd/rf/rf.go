@@ -13,21 +13,21 @@ import (
 	"github.com/AliRostami1/baagh/pkg/controller/rf"
 	"github.com/AliRostami1/baagh/pkg/logy"
 	"github.com/warthog618/gpiod"
-	"go.uber.org/zap/zapcore"
 )
 
 const (
-	Open  = 0xdea928
-	Close = 0xdea921
+	Open  = 0xdea921
+	Close = 0xdea928
 )
 
 func main() {
 	ctx, _ := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
-	logger, err := logy.New(ctx, zapcore.DebugLevel)
+	logger, err := logy.New(ctx, logy.InfoLevel)
 	if err != nil {
 		log.Print(err)
 	}
 	core.SetLogger(logger)
+	logger.Info("booya2")
 
 	chipName := gpiod.Chips()[0]
 
