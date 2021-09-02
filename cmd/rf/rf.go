@@ -27,7 +27,6 @@ func main() {
 		log.Print(err)
 	}
 	core.SetLogger(logger)
-	logger.Info("booya2")
 
 	chipName := gpiod.Chips()[0]
 
