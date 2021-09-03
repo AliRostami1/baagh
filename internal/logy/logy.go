@@ -30,33 +30,22 @@ const (
 	FatalLevel
 )
 
-type Logger interface {
-	Errorf(string, ...interface{})
-	Warnf(string, ...interface{})
-	Infof(string, ...interface{})
-	Debugf(string, ...interface{})
-}
+func New(ctx context.Context, level Level, opts ...zap.Option) (*zap.SugaredLogger, error) {
+	opts = append(opts, zap.OnFatal(zapcore.WriteThenFatal))
 
-func New(ctx context.Context, level Level, opt ...zap.Option) (*zap.SugaredLogger, error) {
 	zapProdConfig := zap.NewProductionConfig()
 	zapProdConfig.Level = zap.NewAtomicLevelAt(level)
 
-	logger, err := zapProdConfig.Build(opt...)
+	logger, err := zapProdConfig.Build(opts...)
 	if err != nil {
 		return nil, err
 	}
 	zap.RedirectStdLog(logger)
 
 	go func() {
+		defer logger.Sync()
 		<-ctx.Done()
-		logger.Sync()
 	}()
+
 	return logger.Sugar(), nil
 }
-
-type DummyLogger struct{}
-
-func (d DummyLogger) Errorf(string, ...interface{}) {}
-func (d DummyLogger) Warnf(string, ...interface{})  {}
-func (d DummyLogger) Infof(string, ...interface{})  {}
-func (d DummyLogger) Debugf(string, ...interface{}) {}

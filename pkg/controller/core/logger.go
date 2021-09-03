@@ -2,13 +2,25 @@ package core
 
 import (
 	"fmt"
-
-	"github.com/AliRostami1/baagh/pkg/logy"
 )
 
-var logger logy.Logger = logy.DummyLogger{}
+type Logger interface {
+	Errorf(string, ...interface{})
+	Warnf(string, ...interface{})
+	Infof(string, ...interface{})
+	Debugf(string, ...interface{})
+}
 
-func SetLogger(l logy.Logger) error {
+type DummyLogger struct{}
+
+func (d DummyLogger) Errorf(string, ...interface{}) {}
+func (d DummyLogger) Warnf(string, ...interface{})  {}
+func (d DummyLogger) Infof(string, ...interface{})  {}
+func (d DummyLogger) Debugf(string, ...interface{}) {}
+
+var logger Logger = DummyLogger{}
+
+func SetLogger(l Logger) error {
 	if l == nil {
 		return fmt.Errorf("logger can't be nil")
 	}
