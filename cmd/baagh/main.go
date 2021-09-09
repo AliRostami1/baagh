@@ -17,7 +17,6 @@ func main() {
 	if err != nil {
 		log.Fatalf("there was a problem initiating the application: %v", err)
 	}
-	defer app.Cleanup()
 
 	chipName := gpiod.Chips()[0]
 

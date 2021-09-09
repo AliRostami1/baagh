@@ -2,34 +2,25 @@ package application
 
 import (
 	"context"
-	"log"
 
-	"github.com/AliRostami1/baagh/pkg/config"
-	"github.com/AliRostami1/baagh/pkg/logger"
-	"github.com/AliRostami1/baagh/pkg/signal"
+	"github.com/AliRostami1/baagh/internal/config"
+	"github.com/AliRostami1/baagh/internal/logy"
+	"github.com/AliRostami1/baagh/pkg/grace"
+	"go.uber.org/zap"
 )
 
 type Application struct {
-	Log    *logger.Logger
+	Log    *zap.SugaredLogger
 	Config *config.Config
 	// DB       *database.DB
 	Ctx      context.Context
-	Shutdown func(string)
-	Cleanup  func() error
+	Shutdown context.CancelFunc
 }
 
 func New() (*Application, error) {
-	// this is the application context, it will determine when the application will exit
-	ctx, cancelCtx := context.WithCancel(context.Background())
+	ctx, shutdown := grace.Shutdown()
 
-	// calling shutdown will terminate the program
-	shutdown := func(reason string) {
-		log.Println(reason)
-		cancelCtx()
-	}
-
-	// get the logger
-	logger, err := logger.New(shutdown)
+	logger, err := logy.New(ctx, logy.InfoLevel)
 	if err != nil {
 		return nil, err
 	}
@@ -40,29 +31,8 @@ func New() (*Application, error) {
 		ConfigType:  "yaml",
 		ConfigPaths: []string{"/etc/baagh/"},
 	})
-	// we temporarily ignore this check so it doesn't terminate the program, untill we add config support
 	if err != nil {
 		return nil, err
-	}
-
-	// here we are handling terminate signals
-	signal.ShutdownHandler(shutdown)
-
-	// // Connect to and Initialize a db instnace
-	// db, err := database.New(ctx, &database.Options{
-	// 	Path:   filepath.Join("/var/log/baagh/badger"),
-	// 	Logger: logger,
-	// })
-	// if err != nil {
-	// 	return nil, fmt.Errorf("couldn't connect to db: %v", err)
-	// }
-
-	cleanup := func() (err error) {
-		// err := db.Close()
-		// if err != nil {
-		// 	logger.Errorf("problem while closing the db: %v", err)
-		// }
-		return
 	}
 
 	return &Application{
@@ -71,6 +41,5 @@ func New() (*Application, error) {
 		// DB:       db,
 		Ctx:      ctx,
 		Shutdown: shutdown,
-		Cleanup:  cleanup,
 	}, nil
 }

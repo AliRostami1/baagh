@@ -5,16 +5,16 @@ import (
 	"log"
 	"os"
 
+	"github.com/AliRostami1/baagh/internal/logy"
 	"github.com/AliRostami1/baagh/pkg/controller/core"
-	"github.com/AliRostami1/baagh/pkg/logy"
-	"github.com/AliRostami1/baagh/pkg/signal"
+	"github.com/AliRostami1/baagh/pkg/grace"
 	"github.com/warthog618/gpiod"
 	"go.uber.org/zap/zapcore"
 )
 
 func main() {
 	defer core.Close()
-	ctx, _ := signal.Gracefull()
+	ctx, _ := grace.Shutdown()
 
 	logger, err := logy.New(ctx, zapcore.DebugLevel)
 	if err != nil {

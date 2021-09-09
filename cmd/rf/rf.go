@@ -9,9 +9,9 @@ import (
 	"strconv"
 	"syscall"
 
+	"github.com/AliRostami1/baagh/internal/logy"
 	"github.com/AliRostami1/baagh/pkg/controller/core"
 	"github.com/AliRostami1/baagh/pkg/controller/rf"
-	"github.com/AliRostami1/baagh/pkg/logy"
 	"github.com/warthog618/gpiod"
 )
 
