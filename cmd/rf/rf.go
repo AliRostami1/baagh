@@ -16,8 +16,8 @@ import (
 )
 
 const (
-	Open  = 0xdea921
-	Close = 0xdea928
+	Open  = 0x50d3e8
+	Close = 0x50d3e4
 )
 
 func main() {
