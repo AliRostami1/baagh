@@ -18,7 +18,7 @@ func (s State) String() string {
 	case Inactive:
 		return "inactive"
 	default:
-		return ""
+		panic(InvalidStateError{}.Error())
 	}
 }
 
@@ -50,7 +50,7 @@ func (m Mode) String() string {
 	case Output:
 		return "output"
 	default:
-		return ""
+		panic(InvalidModeError{}.Error())
 	}
 }
 
@@ -87,7 +87,7 @@ func (p Pull) String() string {
 	case PullUp:
 		return "up"
 	default:
-		return ""
+		panic(InvalidPullError{}.Error())
 	}
 }
 

@@ -140,8 +140,9 @@ func (e *eventRegistry) AddEventListener(fn ...EventHandler) error {
 
 func (e *eventRegistry) ForEach(cb func(index int, handler EventHandler)) {
 	e.Lock()
-	defer e.Unlock()
-	for index, eh := range e.events {
+	ev := e.events
+	e.Unlock()
+	for index, eh := range ev {
 		cb(index, eh)
 	}
 }
