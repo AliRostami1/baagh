@@ -13,12 +13,8 @@ type Closer interface {
 	Close() error
 }
 
-func getChip(chip string) (c *chip, err error) {
-	return chips.Get(chip)
-}
-
 func getItem(chip string, offset int) (i *item, err error) {
-	c, err := getChip(chip)
+	c, err := chips.Get(chip)
 	if err != nil {
 		return nil, err
 	}
@@ -30,7 +26,7 @@ func GetItem(chip string, offset int) (i Item, err error) {
 }
 
 func requestChip(name string) (*chip, error) {
-	c, err := getChip(name)
+	c, err := chips.Get(name)
 
 	// if chip doesn't exits, create it
 	if _, ok := err.(ChipNotFoundError); ok {
@@ -54,13 +50,15 @@ func requestChip(name string) (*chip, error) {
 			return nil, err
 		}
 
-		logger.Infof("chip %s registerd successfully by %s", name)
+		logger.Infof("chip %[1]s registerd successfully", name)
+	} else {
+		logger.Debugf("chip %[1]s got a new owner", name)
 	}
 
-	// if chip exist just add new owner to it
-	c.Lock()
+	// either if it just got created or it was there all along, increment it's tgc
+	c.RLock()
 	tgc := c.tgc
-	c.Unlock()
+	c.RUnlock()
 	tgc.Add()
 
 	return c, err
@@ -72,9 +70,9 @@ func requestItem(chip string, offset int, opts ...ItemOption) (*item, error) {
 		return nil, err
 	}
 
-	c.Lock()
-	itemReg := c.items
-	c.Unlock()
+	c.RLock()
+	itemReg, chipName := c.items, c.name
+	c.RUnlock()
 
 	// apply options
 	options := &ItemOptions{}
@@ -98,6 +96,7 @@ func requestItem(chip string, offset int, opts ...ItemOption) (*item, error) {
 			events:  newEventRegistry(),
 			options: options,
 			tgc:     nil,
+			closed:  false,
 		}
 
 		t, err := tgc.New(i.tgcHandler)
@@ -111,23 +110,25 @@ func requestItem(chip string, offset int, opts ...ItemOption) (*item, error) {
 			return nil, err
 		}
 
-		logger.Infof("item registerd on line %o as %s", offset, options.mode)
+		logger.Infof("item registerd on line %d of chip %s as %s", offset, chipName, options.mode)
 	} else {
 		// already exits, check if its of the same line direction
-		i.Lock()
+		i.RLock()
 		info, err := i.Line.Info()
-		i.Unlock()
+		i.RUnlock()
 		if err != nil {
 			return nil, err
 		}
 		if info.Config.Direction != gpiod.LineDirection(options.mode) {
-			return nil, fmt.Errorf("this item is already registered as %s", Mode(info.Config.Direction))
+			return nil, fmt.Errorf("this item is already registered as %s, you can't register it as %s", Mode(info.Config.Direction), options.mode)
 		}
+		logger.Debugf("item registerd on line %d of chip %s as %s got a new owner", offset, chipName, options.mode)
 	}
 
-	i.Lock()
+	// either if it just got created or it was there all along, increment it's tgc
+	i.RLock()
 	tgc := i.tgc
-	i.Unlock()
+	i.RUnlock()
 	tgc.Add()
 
 	return i, nil
@@ -155,15 +156,14 @@ func NewWatcher(chipName string, offset int, opts ...ItemOption) (Watcher, error
 		return nil, err
 	}
 
-	i.Lock()
-	ev := i.events
-	i.Unlock()
-
 	w := &watcher{
 		item:         i,
 		eventChannel: make(chan *ItemEvent),
 	}
 
+	i.RLock()
+	ev := i.events
+	i.RUnlock()
 	ev.Add(w.eventChannel)
 
 	return w, nil
@@ -175,9 +175,9 @@ func NewInputWatcher(chipName string, offset int) (Watcher, error) {
 		return nil, err
 	}
 
-	i.Lock()
+	i.RLock()
 	ev := i.events
-	i.Unlock()
+	i.RUnlock()
 
 	w := &watcher{
 		item:         i,

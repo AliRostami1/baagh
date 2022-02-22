@@ -24,6 +24,13 @@
             "request": "launch",
             "mode": "debug",
             "program": "${workspaceFolder}/cmd/baagh/main.go"
+        },
+        {
+            "name": "Launch core",
+            "type": "go",
+            "request": "launch",
+            "mode": "debug",
+            "program": "${workspaceFolder}/cmd/core/main.go"
         }
     ]
 }

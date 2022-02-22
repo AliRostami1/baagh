@@ -30,13 +30,14 @@ type item struct {
 	events  *eventRegistry
 	options *ItemOptions
 	tgc     *tgc.Tgc
+	closed  bool
 }
 
 func (i *item) tgcHandler(b bool) {
 	// TODO: we are ignoring error here, fix it!
-	i.Lock()
+	i.RLock()
 	offset, chip, options := i.offset, i.chip, i.options
-	i.Unlock()
+	i.RUnlock()
 	if b {
 		switch options.mode {
 		case ModeInput:
@@ -71,44 +72,43 @@ func (i *item) tgcHandler(b bool) {
 			// return nil, fmt.Errorf("you have to set the mode")
 		}
 	} else {
-		chip.Lock()
-		chip.items.Delete(offset)
-		chip.Unlock()
 		i.cleanup()
 		return
 	}
 }
 
 func (i *item) eventHandler(evt gpiod.LineEvent) {
-	var newState State
-	switch evt.Type {
-	case gpiod.LineEventRisingEdge:
-		newState = StateActive
-	case gpiod.LineEventFallingEdge:
-		newState = StateInactive
+	if !i.closed {
+		var newState State
+		switch evt.Type {
+		case gpiod.LineEventRisingEdge:
+			newState = StateActive
+		case gpiod.LineEventFallingEdge:
+			newState = StateInactive
+		}
+		i.RLock()
+		if i.state == newState {
+
+			i.RUnlock()
+			return
+		}
+		i.RUnlock()
+
+		i.setState(newState)
+
+		i.eventEmmiter(&evt)
 	}
-	i.Lock()
-	if i.state == newState {
-		i.Unlock()
-		return
-	}
-	i.Unlock()
-	i.setState(newState)
-	i.eventEmmiter(&evt)
 }
 
 func (i *item) eventEmmiter(evt *gpiod.LineEvent) error {
-	i.Lock()
-	itemEvents := i.events
-	i.Unlock()
 	info, err := i.Info()
 	if err != nil {
 		return err
 	}
+	i.RLock()
+	itemEvents := i.events
+	i.RUnlock()
 
-	// events.CallAll(&ItemEvent{
-	// 	item: i,
-	// })
 	itemEvents.CallAll(&ItemEvent{
 		Info:        info,
 		Item:        i,
@@ -119,12 +119,12 @@ func (i *item) eventEmmiter(evt *gpiod.LineEvent) error {
 }
 
 func (i *item) SetState(state State) (err error) {
-	i.Lock()
+	i.RLock()
 	if i.state == state {
-		i.Unlock()
+		i.RUnlock()
 		return
 	}
-	i.Unlock()
+	i.RUnlock()
 
 	err = i.setState(state)
 	if err != nil {
@@ -134,38 +134,39 @@ func (i *item) SetState(state State) (err error) {
 }
 
 func (i *item) setState(state State) (err error) {
-	i.Lock()
+	i.RLock()
 	line := i.Line
-	i.Unlock()
+	i.RUnlock()
 
-	info, err := i.Info()
+	// info, err := i.Info()
+	// if err != nil {
+	// 	return
+	// }
+	// if info.Config.Direction == gpiod.LineDirectionOutput {
+	err = line.SetValue(int(state))
 	if err != nil {
 		return
 	}
-	if info.Config.Direction == gpiod.LineDirectionOutput {
-		err = line.SetValue(int(state))
-		if err != nil {
-			return
-		}
-	}
+	// }
+
 	i.Lock()
 	i.state = state
 	i.Unlock()
 
-	logger.Debugf("state changed to %s on line %o of chip %s", state, line.Offset(), line.Chip())
+	logger.Debugf("state changed to %s on line %d of chip %s", state, line.Offset(), line.Chip())
 	return
 }
 
 func (i *item) State() State {
-	i.Lock()
-	defer i.Unlock()
+	i.RLock()
+	defer i.RUnlock()
 	return i.state
 }
 
 func (i *item) Info() (*ItemInfo, error) {
-	i.Lock()
+	i.RLock()
 	li, err := i.Line.Info()
-	i.Unlock()
+	i.RUnlock()
 	if err != nil {
 		return nil, err
 	}
@@ -178,61 +179,69 @@ func (i *item) Info() (*ItemInfo, error) {
 }
 
 func (i *item) Mode() Mode {
-	i.Lock()
-	defer i.Unlock()
+	i.RLock()
+	defer i.RUnlock()
 	return i.options.mode
 }
 
 func (i *item) Pull() Pull {
-	i.Lock()
-	defer i.Unlock()
+	i.RLock()
+	defer i.RUnlock()
 	return i.options.pull
 }
 
 func (i *item) Offset() int {
-	i.Lock()
-	defer i.Unlock()
+	i.RLock()
+	defer i.RUnlock()
 	return i.offset
 }
 
 func (i *item) Chip() string {
-	i.Lock()
+	i.RLock()
 	c := i.chip
-	i.Unlock()
+	i.RUnlock()
 	return c.Name()
 }
 
 func (i *item) removeWatcher(ch chan *ItemEvent) {
-	i.Lock()
+	i.RLock()
 	ev := i.events
-	i.Unlock()
+	i.RUnlock()
 	ev.Remove(ch)
 }
 
 func (i *item) Close() error {
-	i.Lock()
+	i.RLock()
 	tgc := i.tgc
 	chip := i.chip
-	i.Unlock()
+	i.RUnlock()
 	tgc.Delete()
 	chip.Close()
 	return nil
 }
 
 func (i *item) cleanup() (err error) {
-	i.Lock()
+	// set it's state to inactive
+	i.setState(StateInactive)
+
+	i.RLock()
+	i.closed = true
 	c, line, events := i.chip, i.Line, i.events
-	i.Unlock()
+	i.RUnlock()
 
 	// delete the item from chip's item registry
 	c.items.Delete(i.Offset())
-	// set it's state to inactive
-	i.setState(StateInactive)
+
 	// clear all event channels
 	events.Cleanup()
 
-	logger.Infof("cleaned up item %o of %s", i.Offset(), i.Chip())
-
 	// close the gpiod.Line
-	return line.Close()
+	err = line.Close()
+	if err != nil {
+		return
+	}
+
+	logger.Infof("item %d is successfully cleaned up", line.Offset())
+
+	return nil
 }

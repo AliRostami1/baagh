@@ -64,10 +64,10 @@ func (e *eventRegistry) Cleanup() {
 func (e *eventRegistry) CallAll(evt *ItemEvent) {
 	go func() {
 		e.Lock()
-		events := e.events
-		e.Unlock()
-		for _, ch := range events {
+		// events := e.events
+		for _, ch := range e.events {
 			ch <- evt
 		}
+		e.Unlock()
 	}()
 }

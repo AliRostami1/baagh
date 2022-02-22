@@ -92,7 +92,7 @@ func (t *Tgc) Limit() uint {
 
 func (t *Tgc) stateChangeCheck() {
 	t.Lock()
-	if t.ownerCount > 0 != t.state {
+	if (t.ownerCount > 0) != t.state {
 		t.state = t.ownerCount > 0
 		s := t.state
 		t.Unlock()
