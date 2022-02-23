@@ -72,8 +72,13 @@ func (i *item) tgcHandler(b bool) {
 			i.Line = l
 			i.Unlock()
 		default:
-			return
-			// return nil, fmt.Errorf("you have to set the mode")
+			l, err := gpiod.RequestLine(chipName, offset, gpiod.AsOutput(int(StateInactive)))
+			if err != nil {
+				logger.Errorf("requestLine failed: %v", err)
+			}
+			i.Lock()
+			i.Line = l
+			i.Unlock()
 		}
 	} else {
 		i.cleanup()
@@ -82,7 +87,10 @@ func (i *item) tgcHandler(b bool) {
 }
 
 func (i *item) eventHandler(evt gpiod.LineEvent) {
-	if !i.closed {
+	i.RLock()
+	state, closed := i.state, i.closed
+	i.RUnlock()
+	if !closed {
 		var newState State
 		switch evt.Type {
 		case gpiod.LineEventRisingEdge:
@@ -90,15 +98,12 @@ func (i *item) eventHandler(evt gpiod.LineEvent) {
 		case gpiod.LineEventFallingEdge:
 			newState = StateInactive
 		}
-		i.RLock()
 
 		i.eventEmmiter(&evt)
 
-		if i.state == newState {
-			i.RUnlock()
+		if state == newState {
 			return
 		}
-		i.RUnlock()
 		i.setState(newState)
 	}
 }
@@ -125,17 +130,19 @@ func (i *item) setState(state State) (err error) {
 	i.RLock()
 	line := i.Line
 	i.RUnlock()
+	if line != nil {
+		err = line.SetValue(int(state))
+		if err != nil {
+			return
+		}
 
-	err = line.SetValue(int(state))
-	if err != nil {
+		i.Lock()
+		i.state = state
+		i.Unlock()
+
+		logger.Debugf("state changed to %s on line %d of chip %s", state, line.Offset(), line.Chip())
 		return
 	}
-
-	i.Lock()
-	i.state = state
-	i.Unlock()
-
-	logger.Debugf("state changed to %s on line %d of chip %s", state, line.Offset(), line.Chip())
 	return
 }
 
@@ -147,22 +154,24 @@ func (i *item) removeWatcher(ch chan *ItemEvent) {
 }
 
 func (i *item) cleanup() (err error) {
-	// set it's state to inactive
-	i.setState(StateInactive)
-
 	i.RLock()
 	i.closed = true
 	line, events := i.Line, i.events
 	i.RUnlock()
 
+	if line != nil {
+		// close the gpiod.Line
+		err = line.Close()
+		// set it's state to inactive
+		i.setState(StateInactive)
+	}
+
 	// delete the item from chip's item registry
-	// c.items.Delete(i.Offset())
+	reg.Delete(i.chipName, i.Offset())
 
 	// clear all event channels
 	events.Cleanup()
 
-	// close the gpiod.Line
-	err = line.Close()
 	if err != nil {
 		return
 	}

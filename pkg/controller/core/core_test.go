@@ -66,6 +66,7 @@ func TestRequestItem(t *testing.T) {
 	i, err = core.RequestItem(platform.Devpath(), io)
 	assert.Nil(t, err)
 	require.NotNil(t, i)
+
 	i.Close()
 }
 
