@@ -1,7 +1,7 @@
 package core
 
 type Watcher interface {
-	Closer
+	Close() error
 	Watch() <-chan *ItemEvent
 	State() State
 }

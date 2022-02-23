@@ -6,9 +6,11 @@ require (
 	github.com/bketelsen/crypt v0.0.4 // indirect
 	github.com/dgraph-io/badger/v3 v3.2103.2
 	github.com/martinohmann/rfoutlet v1.2.0
+	github.com/pilebones/go-udev v0.9.0
 	github.com/spf13/viper v1.10.1
 	github.com/stretchr/testify v1.7.0
 	github.com/warthog618/gpiod v0.8.0
 	go.uber.org/multierr v1.7.0
 	go.uber.org/zap v1.21.0
+	golang.org/x/sys v0.0.0-20211210111614-af8b64212486
 )

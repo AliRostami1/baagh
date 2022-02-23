@@ -15,28 +15,32 @@ type ItemInfo struct {
 }
 
 type Item interface {
-	Closer
+	Close() error
 	SetState(State) error
 	State() State
+	Offset() int
+	Mode() Mode
+	Pull() Pull
+	Chip() string
 	Info() (*ItemInfo, error)
 }
 
 type item struct {
 	*gpiod.Line
 	*sync.RWMutex
-	chip    *chip
-	state   State
-	offset  int
-	events  *eventRegistry
-	options *ItemOptions
-	tgc     *tgc.Tgc
-	closed  bool
+	chipName string
+	state    State
+	offset   int
+	events   *eventRegistry
+	options  *ItemOptions
+	tgc      *tgc.Tgc
+	closed   bool
 }
 
 func (i *item) tgcHandler(b bool) {
 	// TODO: we are ignoring error here, fix it!
 	i.RLock()
-	offset, chip, options := i.offset, i.chip, i.options
+	offset, options, chipName := i.offset, i.options, i.chipName
 	i.RUnlock()
 	if b {
 		switch options.mode {
@@ -47,11 +51,11 @@ func (i *item) tgcHandler(b bool) {
 			)
 			switch options.pull {
 			case PullDisabled, PullUnknown:
-				l, err = chip.RequestLine(offset, gpiod.AsInput, gpiod.WithEventHandler(i.eventHandler), gpiod.WithBothEdges)
+				l, err = gpiod.RequestLine(chipName, offset, gpiod.AsInput, gpiod.WithEventHandler(i.eventHandler), gpiod.WithBothEdges)
 			case PullDown:
-				l, err = chip.RequestLine(offset, gpiod.AsInput, gpiod.WithEventHandler(i.eventHandler), gpiod.WithBothEdges, gpiod.WithPullDown)
+				l, err = gpiod.RequestLine(chipName, offset, gpiod.AsInput, gpiod.WithEventHandler(i.eventHandler), gpiod.WithBothEdges, gpiod.WithPullDown)
 			case PullUp:
-				l, err = chip.RequestLine(offset, gpiod.AsInput, gpiod.WithEventHandler(i.eventHandler), gpiod.WithBothEdges, gpiod.WithPullUp)
+				l, err = gpiod.RequestLine(chipName, offset, gpiod.AsInput, gpiod.WithEventHandler(i.eventHandler), gpiod.WithBothEdges, gpiod.WithPullUp)
 			}
 			if err != nil {
 				logger.Errorf("requestLine failed: %v", err)
@@ -60,7 +64,7 @@ func (i *item) tgcHandler(b bool) {
 			i.Line = l
 			i.Unlock()
 		case ModeOutput:
-			l, err := chip.RequestLine(offset, gpiod.AsOutput(int(options.state)))
+			l, err := gpiod.RequestLine(chipName, offset, gpiod.AsOutput(int(options.state)))
 			if err != nil {
 				logger.Errorf("requestLine failed: %v", err)
 			}
@@ -96,7 +100,6 @@ func (i *item) eventHandler(evt gpiod.LineEvent) {
 		}
 		i.RUnlock()
 		i.setState(newState)
-
 	}
 }
 
@@ -118,6 +121,58 @@ func (i *item) eventEmmiter(evt *gpiod.LineEvent) error {
 	return nil
 }
 
+func (i *item) setState(state State) (err error) {
+	i.RLock()
+	line := i.Line
+	i.RUnlock()
+
+	err = line.SetValue(int(state))
+	if err != nil {
+		return
+	}
+
+	i.Lock()
+	i.state = state
+	i.Unlock()
+
+	logger.Debugf("state changed to %s on line %d of chip %s", state, line.Offset(), line.Chip())
+	return
+}
+
+func (i *item) removeWatcher(ch chan *ItemEvent) {
+	i.RLock()
+	ev := i.events
+	i.RUnlock()
+	ev.Remove(ch)
+}
+
+func (i *item) cleanup() (err error) {
+	// set it's state to inactive
+	i.setState(StateInactive)
+
+	i.RLock()
+	i.closed = true
+	line, events := i.Line, i.events
+	i.RUnlock()
+
+	// delete the item from chip's item registry
+	// c.items.Delete(i.Offset())
+
+	// clear all event channels
+	events.Cleanup()
+
+	// close the gpiod.Line
+	err = line.Close()
+	if err != nil {
+		return
+	}
+
+	logger.Infof("item %d is successfully cleaned up", line.Offset())
+
+	return nil
+}
+
+// Exported
 func (i *item) SetState(state State) (err error) {
 	i.RLock()
 	if i.state == state {
@@ -131,30 +186,6 @@ func (i *item) SetState(state State) (err error) {
 		return
 	}
 	return i.eventEmmiter(nil)
-}
-
-func (i *item) setState(state State) (err error) {
-	i.RLock()
-	line := i.Line
-	i.RUnlock()
-
-	// info, err := i.Info()
-	// if err != nil {
-	// 	return
-	// }
-	// if info.Config.Direction == gpiod.LineDirectionOutput {
-	err = line.SetValue(int(state))
-	if err != nil {
-		return
-	}
-	// }
-
-	i.Lock()
-	i.state = state
-	i.Unlock()
-
-	logger.Debugf("state changed to %s on line %d of chip %s", state, line.Offset(), line.Chip())
-	return
 }
 
 func (i *item) State() State {
@@ -198,50 +229,14 @@ func (i *item) Offset() int {
 
 func (i *item) Chip() string {
 	i.RLock()
-	c := i.chip
-	i.RUnlock()
-	return c.Name()
-}
-
-func (i *item) removeWatcher(ch chan *ItemEvent) {
-	i.RLock()
-	ev := i.events
-	i.RUnlock()
-	ev.Remove(ch)
+	defer i.RUnlock()
+	return i.chipName
 }
 
 func (i *item) Close() error {
 	i.RLock()
 	tgc := i.tgc
-	chip := i.chip
 	i.RUnlock()
 	tgc.Delete()
-	chip.Close()
-	return nil
-}
-
-func (i *item) cleanup() (err error) {
-	// set it's state to inactive
-	i.setState(StateInactive)
-
-	i.RLock()
-	i.closed = true
-	c, line, events := i.chip, i.Line, i.events
-	i.RUnlock()
-
-	// delete the item from chip's item registry
-	c.items.Delete(i.Offset())
-
-	// clear all event channels
-	events.Cleanup()
-
-	// close the gpiod.Line
-	err = line.Close()
-	if err != nil {
-		return
-	}
-
-	logger.Infof("item %d is successfully cleaned up", line.Offset())
-
 	return nil
 }

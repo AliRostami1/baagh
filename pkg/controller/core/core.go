@@ -9,70 +9,49 @@ import (
 	"go.uber.org/multierr"
 )
 
-type Closer interface {
-	Close() error
+var reg = registry{
+	chips:   map[string]map[int]*item{},
+	lines:   map[string]int{},
+	RWMutex: &sync.RWMutex{},
 }
 
-func getItem(chip string, offset int) (i *item, err error) {
-	c, err := chips.Get(chip)
-	if err != nil {
-		return nil, err
+func init() {
+	for _, chip := range gpiod.Chips() {
+		reg.chips[chip] = map[int]*item{}
+		c, _ := gpiod.NewChip(chip)
+		defer c.Close()
+		reg.lines[chip] = c.Lines()
 	}
-	return c.getItem(offset)
 }
 
-func GetItem(chip string, offset int) (i Item, err error) {
-	return getItem(chip, offset)
+func isChip(chip string) bool {
+	err := gpiod.IsChip(chip)
+	return err == nil
 }
 
-func requestChip(name string) (*chip, error) {
-	c, err := chips.Get(name)
-
-	// if chip doesn't exits, create it
-	if _, ok := err.(ChipNotFoundError); ok {
-		c = &chip{
-			Chip:    nil,
-			items:   newItemRegistry(),
-			tgc:     nil,
-			name:    name,
-			RWMutex: &sync.RWMutex{},
-		}
-
-		var t *tgc.Tgc
-		t, err = tgc.New(c.tgcHandler)
-		if err != nil {
-			return nil, err
-		}
-		c.tgc = t
-
-		err = chips.Add(name, c)
-		if err != nil {
-			return nil, err
-		}
-
-		logger.Infof("chip %[1]s registerd successfully", name)
+func isOffset(chip string, offset int) bool {
+	var lines int
+	if l, ok := reg.lines[chip]; !ok {
+		c, _ := gpiod.NewChip(chip)
+		defer c.Close()
+		lines = c.Lines()
+		reg.lines[chip] = lines
 	} else {
-		logger.Debugf("chip %[1]s got a new owner", name)
+		lines = l
 	}
-
-	// either if it just got created or it was there all along, increment it's tgc
-	c.RLock()
-	tgc := c.tgc
-	c.RUnlock()
-	tgc.Add()
-
-	return c, err
+	return offset > 0 && offset < lines
 }
 
 func requestItem(chip string, offset int, opts ...ItemOption) (*item, error) {
-	c, err := requestChip(chip)
-	if err != nil {
-		return nil, err
+	logger.Infof("%+v", reg)
+	// check if chip exists
+	if !isChip(chip) {
+		return nil, fmt.Errorf("chip %s does not exist", chip)
 	}
-
-	c.RLock()
-	itemReg, chipName := c.items, c.name
-	c.RUnlock()
+	// check if offset is valid
+	if !isOffset(chip, offset) {
+		return nil, fmt.Errorf("offset %d is out of range of chip %s, 0-%d", offset, chip, reg.lines[chip])
+	}
 
 	// apply options
 	options := &ItemOptions{}
@@ -83,20 +62,20 @@ func requestItem(chip string, offset int, opts ...ItemOption) (*item, error) {
 		}
 	}
 
-	i, err := itemReg.Get(offset)
+	i, err := reg.Get(chip, offset)
 
 	if _, ok := err.(ItemNotFound); ok {
 		// item doesnt exist in registry so we'll create it
 		i = &item{
-			Line:    nil,
-			RWMutex: &sync.RWMutex{},
-			chip:    c,
-			state:   options.state,
-			offset:  offset,
-			events:  newEventRegistry(),
-			options: options,
-			tgc:     nil,
-			closed:  false,
+			Line:     nil,
+			RWMutex:  &sync.RWMutex{},
+			chipName: chip,
+			state:    options.state,
+			offset:   offset,
+			events:   newEventRegistry(),
+			options:  options,
+			tgc:      nil,
+			closed:   false,
 		}
 
 		t, err := tgc.New(i.tgcHandler)
@@ -105,12 +84,12 @@ func requestItem(chip string, offset int, opts ...ItemOption) (*item, error) {
 		}
 		i.tgc = t
 
-		err = itemReg.Add(offset, i)
+		err = reg.Add(chip, offset, i)
 		if err != nil {
 			return nil, err
 		}
 
-		logger.Infof("item registerd on line %d of chip %s as %s", offset, chipName, options.mode)
+		logger.Infof("item registerd on line %d of chip %s as %s", offset, chip, options.mode)
 	} else {
 		// already exits, check if its of the same line direction
 		i.RLock()
@@ -122,7 +101,7 @@ func requestItem(chip string, offset int, opts ...ItemOption) (*item, error) {
 		if info.Config.Direction != gpiod.LineDirection(options.mode) {
 			return nil, fmt.Errorf("this item is already registered as %s, you can't register it as %s", Mode(info.Config.Direction), options.mode)
 		}
-		logger.Debugf("item registerd on line %d of chip %s as %s got a new owner", offset, chipName, options.mode)
+		logger.Infof("item registerd on line %d of chip %s as %s got a new owner", offset, chip, options.mode)
 	}
 
 	// either if it just got created or it was there all along, increment it's tgc
@@ -134,8 +113,14 @@ func requestItem(chip string, offset int, opts ...ItemOption) (*item, error) {
 	return i, nil
 }
 
+// func GetChip(chip string) (c Chip)
+
 func RequestItem(chip string, offset int, opts ...ItemOption) (Item, error) {
 	return requestItem(chip, offset, opts...)
+}
+
+func GetItem(chip string, offset int) (Item, error) {
+	return reg.Get(chip, offset)
 }
 
 func SetState(chipName string, offset int, state State) (err error) {
@@ -190,9 +175,11 @@ func NewInputWatcher(chipName string, offset int) (Watcher, error) {
 }
 
 func Close() (err error) {
-	chips.ForEach(func(chipName string, chip *chip) {
-		err = multierr.Append(err, chip.cleanup())
-	})
+	for _, chip := range gpiod.Chips() {
+		reg.ForEach(chip, func(offset int, item *item) {
+			err = multierr.Append(err, item.cleanup())
+		})
+	}
 	if err != nil {
 		logger.Errorf(err.Error())
 	} else {

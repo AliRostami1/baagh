@@ -11,13 +11,13 @@ import (
 type Sensor = core.Watcher
 
 type Actuator interface {
-	core.Closer
+	Close() error
 	SetState(core.State) error
 	State() core.State
 }
 
 type GeneralI interface {
-	core.Closer
+	Close() error
 	Register(tag string, opts ...Option) (g *General, err error)
 	State() core.State
 }
