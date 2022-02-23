@@ -1,6 +1,6 @@
-// SPDX-License-Identifier: MIT
+// SPDX-FileCopyrightText: 2019 Kent Gibson <warthog618@gmail.com>
 //
-// Copyright © 2019 Kent Gibson <warthog618@gmail.com>.
+// SPDX-License-Identifier: MIT
 
 // Package gpiod is a library for accessing GPIO pins/lines on Linux platforms
 // using the GPIO character device.
@@ -8,24 +8,20 @@
 // This is a Go equivalent of libgpiod.
 //
 // Supports:
-// - Line direction (input/output)
-// - Line write (active/inactive)
-// - Line read (active/inactive)
-// - Line bias (pull-up/pull-down/disabled)
-// - Line drive (push-pull/open-drain/open-source)
-// - Line level (active-high/active-low)
-// - Line edge detection (rising/falling/both)
-// - Line labels
-// - Collections of lines for near simultaneous reads and writes on multiple lines
+//  - Line direction (input/output)
+//  - Line write (active/inactive)
+//  - Line read (active/inactive)
+//  - Line bias (pull-up/pull-down/disabled)
+//  - Line drive (push-pull/open-drain/open-source)
+//  - Line level (active-high/active-low)
+//  - Line edge detection (rising/falling/both)
+//  - Line labels
+//  - Collections of lines for near simultaneous reads and writes on multiple lines
 //
 // Example of use:
 //
-//  c, err := gpiod.NewChip("gpiochip0")
-//  if err != nil {
-//  	panic(err)
-//  }
 //  v := 0
-//  l, err := c.RequestLine(4, gpiod.AsOutput(v))
+//  l, err := gpiod.RequestLine("gpiochip0", 4, gpiod.AsOutput(v))
 //  if err != nil {
 //  	panic(err)
 //  }
@@ -124,7 +120,7 @@ const (
 type LineDrive int
 
 const (
-	// LineDrivePushPull indicatges the line is driven in both directions.
+	// LineDrivePushPull indicates the line is driven in both directions.
 	LineDrivePushPull LineDrive = iota
 
 	// LineDriveOpenDrain indicates the line is an open drain output.
@@ -208,6 +204,30 @@ func Chips() []string {
 		}
 	}
 	return cc
+}
+
+// RequestLine requests control of a single line on a chip.
+//
+// If granted, control is maintained until the Line is closed.
+func RequestLine(chip string, offset int, options ...LineReqOption) (*Line, error) {
+	c, err := NewChip(chip)
+	if err != nil {
+		return nil, err
+	}
+	defer c.Close()
+	return c.RequestLine(offset, options...)
+}
+
+// RequestLines requests control of a collection of lines on a chip.
+//
+// If granted, control is maintained until the Lines are closed.
+func RequestLines(chip string, offsets []int, options ...LineReqOption) (*Lines, error) {
+	c, err := NewChip(chip)
+	if err != nil {
+		return nil, err
+	}
+	defer c.Close()
+	return c.RequestLines(offsets, options...)
 }
 
 // NewChip opens a GPIO character device.
@@ -395,7 +415,7 @@ func (c *Chip) Lines() int {
 
 // RequestLine requests control of a single line on the chip.
 //
-// If granted, control is maintained until either the Line or Chip are closed.
+// If granted, control is maintained until the Line is closed.
 func (c *Chip) RequestLine(offset int, options ...LineReqOption) (*Line, error) {
 	ll, err := c.RequestLines([]int{offset}, options...)
 	if err != nil {
@@ -417,6 +437,8 @@ func (c *Chip) RequestLine(offset int, options ...LineReqOption) (*Line, error) 
 }
 
 // RequestLines requests control of a collection of lines on the chip.
+//
+// If granted, control is maintained until the Lines are closed.
 func (c *Chip) RequestLines(offsets []int, options ...LineReqOption) (*Lines, error) {
 	for _, o := range offsets {
 		if o < 0 || o >= c.lines {
@@ -621,14 +643,16 @@ func (lc LineConfig) toLineFlagV2() (flags uapi.LineFlagV2) {
 	if lc.ActiveLow {
 		flags |= uapi.LineFlagV2ActiveLow
 	}
-	if lc.Direction == LineDirectionOutput {
+	switch lc.Direction {
+	case LineDirectionOutput:
 		flags |= uapi.LineFlagV2Output
-		if lc.Drive == LineDriveOpenDrain {
+		switch lc.Drive {
+		case LineDriveOpenDrain:
 			flags |= uapi.LineFlagV2OpenDrain
-		} else if lc.Drive == LineDriveOpenSource {
+		case LineDriveOpenSource:
 			flags |= uapi.LineFlagV2OpenSource
 		}
-	} else if lc.Direction == LineDirectionInput {
+	case LineDirectionInput:
 		flags |= uapi.LineFlagV2Input
 		if lc.EdgeDetection&LineEdgeRising != 0 {
 			flags |= uapi.LineFlagV2EdgeRising
@@ -641,11 +665,12 @@ func (lc LineConfig) toLineFlagV2() (flags uapi.LineFlagV2) {
 		}
 	}
 
-	if lc.Bias == LineBiasDisabled {
+	switch lc.Bias {
+	case LineBiasDisabled:
 		flags |= uapi.LineFlagV2BiasDisabled
-	} else if lc.Bias == LineBiasPullUp {
+	case LineBiasPullUp:
 		flags |= uapi.LineFlagV2BiasPullUp
-	} else if lc.Bias == LineBiasPullDown {
+	case LineBiasPullDown:
 		flags |= uapi.LineFlagV2BiasPullDown
 	}
 	return
@@ -757,6 +782,10 @@ func (l *baseLine) Chip() string {
 }
 
 // Close releases all resources held by the requested line.
+//
+// Note that this includes waiting for any running event handler to return.
+// As a consequence the Close must not be called from the context of the event
+// handler - the Close should be called from a different goroutine.
 func (l *baseLine) Close() error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -1064,6 +1093,16 @@ type LineEvent struct {
 
 	// The type of state change event this structure represents.
 	Type LineEventType
+
+	// The seqno for this event in all events on all lines in this line request.
+	//
+	// Requires uAPI v2.
+	Seqno uint32
+
+	// The seqno for this event in all events in this line.
+	//
+	// Requires uAPI v2.
+	LineSeqno uint32
 }
 
 // LineInfoChangeEvent represents a change in the info a line.

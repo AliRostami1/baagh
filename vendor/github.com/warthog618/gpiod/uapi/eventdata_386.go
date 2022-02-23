@@ -1,7 +1,8 @@
-// SPDX-License-Identifier: MIT
+/// SPDX-FileCopyrightText: 2020 Kent Gibson <warthog618@gmail.com>
 //
-// Copyright © 2020 Kent Gibson <warthog618@gmail.com>.
+// SPDX-License-Identifier: MIT
 
+//go:build linux
 // +build linux
 
 // Package uapi provides the Linux GPIO UAPI definitions for gpiod.

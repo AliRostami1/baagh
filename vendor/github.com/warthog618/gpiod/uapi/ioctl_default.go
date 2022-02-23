@@ -1,8 +1,9 @@
-// SPDX-License-Identifier: MIT
+// SPDX-FileCopyrightText: 2020 Kent Gibson <warthog618@gmail.com>
 //
-// Copyright © 2020 Kent Gibson <warthog618@gmail.com>.
+// SPDX-License-Identifier: MIT
 
-// +build arm arm64 386 amd64
+//go:build arm || arm64 || 386 || amd64 || riscv64
+// +build arm arm64 386 amd64 riscv64
 
 package uapi
 

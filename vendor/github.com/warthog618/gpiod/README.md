@@ -1,6 +1,12 @@
+<!--
+SPDX-FileCopyrightText: 2019 Kent Gibson <warthog618@gmail.com>
+
+SPDX-License-Identifier: MIT
+-->
+
 # gpiod
 
-[![Build Status](https://travis-ci.org/warthog618/gpiod.svg)](https://travis-ci.org/warthog618/gpiod)
+[![Build Status](https://app.travis-ci.com/warthog618/gpiod.svg)](https://app.travis-ci.com/warthog618/gpiod)
 [![PkgGoDev](https://pkg.go.dev/badge/github.com/warthog618/gpiod)](https://pkg.go.dev/github.com/warthog618/gpiod)
 [![Go Report Card](https://goreportcard.com/badge/github.com/warthog618/gpiod)](https://goreportcard.com/report/github.com/warthog618/gpiod)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/warthog618/gpiod/blob/master/LICENSE)
@@ -52,10 +58,9 @@ import "github.com/warthog618/gpiod"
 
 ...
 
-c, _ := gpiod.NewChip("gpiochip0", gpiod.WithConsumer("softwire"))
-in, _ := c.RequestLine(2, gpiod.AsInput)
+in, _ := gpiod.RequestLine("gpiochip0", 2, gpiod.AsInput)
 val, _ := in.Value()
-out, _ := c.RequestLine(3, gpiod.AsOutput(val))
+out, _ := gpiod.RequestLine("gpiochip0", 3, gpiod.AsOutput(val))
 
 ...
 ```
@@ -70,9 +75,214 @@ import "github.com/warthog618/gpiod"
 
 Error handling is omitted from the following examples for brevity.
 
+### Line Requests
+
+To read or alter the value of a
+[line](https://pkg.go.dev/github.com/warthog618/gpiod#Line) it must first be
+requested using [*gpiod.RequestLine*](https://pkg.go.dev/github.com/warthog618/gpiod#RequestLine):
+
+```go
+l, _ := gpiod.RequestLine("gpiochip0", 4)   // in its existing state
+```
+
+or from the [*Chip*](#chip-initialization) object using
+[*Chip.RequestLine*](https://pkg.go.dev/github.com/warthog618/gpiod#Chip.RequestLine):
+
+```go
+l, _ := c.RequestLine(4)                    // from a Chip object
+```
+
+The offset parameter identifies the line on the chip, and is specific to the
+GPIO chip.  To improve readability, convenience mappings can be provided for
+specific devices, such as the Raspberry Pi:
+
+```go
+l, _ := c.RequestLine(rpi.J8p7)             // using Raspberry Pi J8 mapping
+```
+
+The initial configuration of the line can be set by providing line
+[configuration options](#configuration-options), as shown in this *AsOutput*
+example:
+
+```go
+l, _ := gpiod.RequestLine("gpiochip0", 4, gpiod.AsOutput(1))  // as an output line
+```
+
+Multiple lines from the same chip may be requested as a collection of
+[lines](https://pkg.go.dev/github.com/warthog618/gpiod#Lines) using
+[*gpiod.RequestLines*](https://pkg.go.dev/github.com/warthog618/gpiod#RequestLines)
+
+```go
+ll, _ := gpiod.RequestLines("gpiochip0", []int{0, 1, 2, 3}, gpiod.AsOutput(0, 0, 1, 1))
+```
+
+ or from a Chip object using
+[*Chip.RequestLines*](https://pkg.go.dev/github.com/warthog618/gpiod#Chip.RequestLines):
+
+```go
+ll, _ := c.RequestLines([]int{0, 1, 2, 3}, gpiod.AsOutput(0, 0, 1, 1))
+```
+
+When no longer required, the line(s) should be closed to release resources:
+
+```go
+l.Close()
+ll.Close()
+```
+
+### Line Values
+
+Lines must be requsted using [*RequestLine*](#line-requests) before their
+values can be accessed.
+
+#### Read Input
+
+The current line value can be read with the
+[*Value*](https://pkg.go.dev/github.com/warthog618/gpiod#Line.Value)
+method:
+
+```go
+r, _ := l.Value()  // Read state from line (active / inactive)
+```
+
+For collections of lines, the level of all lines is read simultaneously using
+the [*Values*](https://pkg.go.dev/github.com/warthog618/gpiod#Lines.SetValues)
+method:
+
+```go
+rr := []int{0, 0, 0, 0} // buffer to read into...
+ll.Values(rr)           // Read the state of a collection of lines
+```
+
+#### Write Output
+
+The current line value can be set with the
+[*SetValue*](https://pkg.go.dev/github.com/warthog618/gpiod#Line.SetValue)
+method:
+
+```go
+l.SetValue(1)     // Set line active
+l.SetValue(0)     // Set line inactive
+```
+
+Also refer to the [blinker](example/blinker/blinker.go) example.
+
+For collections of lines, all lines are set simultaneously using the
+[*SetValues*](https://pkg.go.dev/github.com/warthog618/gpiod#Lines.SetValues)
+method:
+
+```go
+ll.SetValues([]int{0, 1, 0, 1}) // Set a collection of lines
+```
+
+#### Edge Watches
+
+The value of an input line can be watched and trigger calls to handler
+functions.
+
+The watch can be on rising or falling edges, or both.
+
+The events are passed to a handler function provided using the
+*WithEventHandler(eh)* option.  The handler function is passed a
+[*LineEvent*](https://pkg.go.dev/github.com/warthog618/gpiod#LineEvent), which
+contains details of the edge event including the offset of the triggering line,
+the time the edge was detected and the type of edge detected:
+
+```go
+func handler(evt gpiod.LineEvent) {
+  // handle edge event
+}
+
+l, _ = c.RequestLine(rpi.J8p7, gpiod.WithEventHandler(handler), gpiod.WithBothEdges)
+```
+
+To maintain event ordering, the event handler is called serially from a
+goroutine that reads the events from the kernel.  The event handler is expected
+to be short lived, and so should hand off any potentially blocking operations to
+a separate goroutine.
+
+An edge watch can be removed by closing the line:
+
+```go
+l.Close()
+```
+
+or by reconfiguring the requested lines to disable edge detection:
+
+```go
+l.Reconfigure(gpiod.WithoutEdges)
+```
+
+Note that the *Close* waits for the event handler to return and so must not be
+called from the event handler context - it should be called from a separate
+goroutine.
+
+Also see the [watcher](example/watcher/watcher.go) example.
+
+### Line Configuration
+
+Line configuration is set via [options](#configuration-options) to
+*Chip.RequestLine(s)* and *Line.Reconfigure*.  These override any default which
+may be set in *NewChip*.
+
+Note that configuration options applied to a collection of lines apply to all
+lines in the collection, unless they are applied to a subset of the requested
+lines using the *WithLines* option.
+
+#### Reconfiguration
+
+Requested lines may be reconfigured using the Reconfigure method:
+
+```go
+l.Reconfigure(gpiod.AsInput)            // set direction to Input
+ll.Reconfigure(gpiod.AsOutput(1, 0))    // set direction to Output (and values to active and inactive)
+```
+
+The *Line.Reconfigure* method accepts differential changes to the configuration
+for the lines, so option categories not specified or overridden by the specified
+changes will remain unchanged.
+
+The *Line.Reconfigure* method requires Linux v5.5 or later.
+
+#### Complex Configurations
+
+It is sometimes necessary for the configuration of lines within a request to
+have slightly different configurations.  Line options may be applied to a subset
+of requested lines using the *WithLines(offsets, options)* option.
+
+The following example requests a set of output lines and sets some of the lines
+in the request to active low:
+
+```go
+ll, _ = c.RequestLines([]int{0, 1, 2, 3}, gpiod.AsOutput(0, 0, 1, 1),
+    gpiod.WithLines([]int{0, 3}, gpiod.AsActiveLow),
+    gpiod.AsOpenDrain)
+```
+
+The configuration of the subset of lines inherits the configuration of the
+request at the point the *WithLines* is invoked.  Subsequent changes to the
+request configuration do not alter the configuration of the subset - in the
+example above, lines 0 and 3 will not be configured as open-drain.
+
+Once a line's configuration has branched from the request configuration it can
+only be altered with *WithLines* options:
+
+```go
+ll.Reconfigure(gpiod.WithLines([]int{0}, gpiod.AsActiveHigh))
+```
+
+or reset to the request configuration using the *Defaulted* option:
+
+```go
+ll.Reconfigure(gpiod.WithLines([]int{3}, gpiod.Defaulted))
+```
+
+Complex configurations require Linux v5.10 or later.
+
 ### Chip Initialization
 
-The Chip object is used to request lines from a GPIO chip.
+The Chip object is used to discover details about avaialble lines and can be used
+to request lines from a GPIO chip.
 
 A Chip object is constructed using the
 [*NewChip*](https://pkg.go.dev/github.com/warthog618/gpiod#NewChip) function.
@@ -155,188 +365,6 @@ c.UnwatchLineInfo(4)
 
 or by closing the chip.
 
-### Line Requests
-
-To read or alter the value of a
-[line](https://pkg.go.dev/github.com/warthog618/gpiod#Line) it must first be
-requested from the Chip, using
-[*Chip.RequestLine*](https://pkg.go.dev/github.com/warthog618/gpiod#Chip.RequestLine):
-
-```go
-l, _ := c.RequestLine(4)                    // in its existing state
-```
-
-The offset parameter identifies the line on the chip, and is specific to the
-GPIO chip.  To improve readability, convenience mappings can be provided for
-specific devices, such as the Raspberry Pi:
-
-```go
-l, _ := c.RequestLine(rpi.J8p7)             // using Raspberry Pi J8 mapping
-```
-
-The initial configuration of the line can be set by providing line
-[configuration options](#configuration-options), as shown in this *AsOutput*
-example:
-
-```go
-l, _ := c.RequestLine(4, gpiod.AsOutput(1))  // as an output line
-```
-
-Multiple lines from the same chip may be requested as a collection of
-[lines](https://pkg.go.dev/github.com/warthog618/gpiod#Lines) using
-[*Chip.RequestLines*](https://pkg.go.dev/github.com/warthog618/gpiod#Chip.RequestLines):
-
-```go
-ll, _ := c.RequestLines([]int{0, 1, 2, 3}, gpiod.AsOutput(0, 0, 1, 1))
-```
-
-When no longer required, the line(s) should be closed to release resources:
-
-```go
-l.Close()
-ll.Close()
-```
-
-### Line Values
-
-Lines must be requsted using [*Chip.RequestLines*](#line-requests) before their
-values can be accessed.
-
-#### Read Input
-
-The current line value can be read with the
-[*Value*](https://pkg.go.dev/github.com/warthog618/gpiod#Line.Value)
-method:
-
-```go
-r, _ := l.Value()  // Read state from line (active / inactive)
-```
-
-For collections of lines, the level of all lines is read simultaneously using
-the [*Values*](https://pkg.go.dev/github.com/warthog618/gpiod#Lines.SetValues)
-method:
-
-```go
-rr := []int{0, 0, 0, 0} // buffer to read into...
-ll.Values(rr)           // Read the state of a collection of lines
-```
-
-#### Write Output
-
-The current line value can be set with the
-[*SetValue*](https://pkg.go.dev/github.com/warthog618/gpiod#Line.SetValue)
-method:
-
-```go
-l.SetValue(1)     // Set line active
-l.SetValue(0)     // Set line inactive
-```
-
-Also refer to the [blinker](example/blinker/blinker.go) example.
-
-For collections of lines, all lines are set simultaneously using the
-[*SetValues*](https://pkg.go.dev/github.com/warthog618/gpiod#Lines.SetValues)
-method:
-
-```go
-ll.SetValues([]int{0, 1, 0, 1}) // Set a collection of lines
-```
-
-#### Edge Watches
-
-The value of an input line can be watched and trigger calls to handler
-functions.
-
-The watch can be on rising or falling edges, or both.
-
-The events are passed to a handler function provided using the
-*WithEventHandler(eh)* option.  The handler function is passed a
-[*LineEvent*](https://pkg.go.dev/github.com/warthog618/gpiod#LineEvent), which
-contains details of the edge event including the offset of the triggering line,
-the time the edge was detected and the type of edge detected:
-
-```go
-func handler(evt gpiod.LineEvent) {
-  // handle edge event
-}
-
-l, _ = c.RequestLine(rpi.J8p7, gpiod.WithEventHandler(handler), gpiod.WithBothEdges)
-```
-
-An edge watch can be removed by closing the line:
-
-```go
-l.Close()
-```
-
-or by reconfiguring the requested lines to disable edge detection:
-
-```go
-l.Reconfigure(gpiod.WithoutEdges)
-```
-
-Also see the [watcher](example/watcher/watcher.go) example.
-
-### Line Configuration
-
-Line configuration is set via [options](#configuration-options) to
-*Chip.RequestLine(s)* and *Line.Reconfigure*.  These override any default which
-may be set in *NewChip*.
-
-Note that configuration options applied to a collection of lines apply to all
-lines in the collection, unless they are applied to a subset of the requested
-lines using the *WithLines* option.
-
-#### Reconfiguration
-
-Requested lines may be reconfigured using the Reconfigure method:
-
-```go
-l.Reconfigure(gpiod.AsInput)            // set direction to Input
-ll.Reconfigure(gpiod.AsOutput(1, 0))    // set direction to Output (and values to active and inactive)
-```
-
-The *Line.Reconfigure* method accepts differential changes to the configuration
-for the lines, so option categories not specified or overridden by the specified
-changes will remain unchanged.
-
-The *Line.Reconfigure* method requires Linux v5.5 or later.
-
-#### Complex Configurations
-
-It is sometimes necessary for the configuration of lines within a request to
-have slightly different configurations.  Line options may be applied to a subset
-of requested lines using the *WithLines(offsets, options)* option.
-
-The following example requests a set of output lines and sets some of the lines
-in the request to active low:
-
-```go
-ll, _ = c.RequestLines([]int{0, 1, 2, 3}, gpiod.AsOutput(0, 0, 1, 1),
-    gpiod.WithLines([]int{0, 3}, gpiod.AsActiveLow),
-    gpiod.AsOpenDrain)
-```
-
-The configuration of the subset of lines inherits the configuration of the
-request at the point the *WithLines* is invoked.  Subsequent changes to the
-request configuration do not alter the configuration of the subset - in the
-example above, lines 0 and 3 will not be configured as open-drain.
-
-Once a line's configuration has branched from the request configuration it can
-only be altered with *WithLines* options:
-
-```go
-ll.Reconfigure(gpiod.WithLines([]int{0}, gpiod.AsActiveHigh))
-```
-
-or reset to the request configuration using the *Defaulted* option:
-
-```go
-ll.Reconfigure(gpiod.WithLines([]int{3}, gpiod.Defaulted))
-```
-
-Complex configurations require Linux v5.10 or later.
-
 #### Categories
 
 Most line configuration options belong to one of the following categories:
@@ -359,8 +387,8 @@ is 0 for inactive and 1 for active. The physical value considered active can be
 controlled using the *AsActiveHigh* and *AsActiveLow* options:
 
 ```go
-l, _ := c.RequestLine(4,gpiod.AsActiveLow) // during request
-l.Reconfigure(gpiod.AsActiveHigh)          // once requested
+l, _ := c.RequestLine(4, gpiod.AsActiveLow) // during request
+l.Reconfigure(gpiod.AsActiveHigh)           // once requested
 ```
 
 Lines are typically active high by default.
@@ -370,9 +398,9 @@ Lines are typically active high by default.
 The line direction can be controlled using the *AsInput* and *AsOutput* options:
 
 ```go
-l, _ := c.RequestLine(4,gpiod.AsInput) // during request
-l.Reconfigure(gpiod.AsInput)           // set direction to Input
-l.Reconfigure(gpiod.AsOutput(0))       // set direction to Output (and value to inactive)
+l, _ := c.RequestLine(4, gpiod.AsInput) // during request
+l.Reconfigure(gpiod.AsInput)            // set direction to Input
+l.Reconfigure(gpiod.AsOutput(0))        // set direction to Output (and value to inactive)
 ```
 
 ##### Bias
@@ -380,8 +408,8 @@ l.Reconfigure(gpiod.AsOutput(0))       // set direction to Output (and value to 
 The bias options control the pull up/down state of the line:
 
 ```go
-l,_ := c.RequestLine(4,gpiod.WithPullUp)  // during request
-l.Reconfigure(gpiod.WithBiasDisabled)      // once requested
+l, _ = c.RequestLine(4, gpiod.WithPullUp) // during request
+l.Reconfigure(gpiod.WithBiasDisabled)     // once requested
 ```
 
 The bias options require Linux v5.5 or later.
@@ -391,8 +419,8 @@ The bias options require Linux v5.5 or later.
 The drive options control how an output line is driven when active and inactive:
 
 ```go
-l,_ := c.RequestLine(4,gpiod.AsOpenDrain) // during request
-l.Reconfigure(gpiod.AsOpenSource)         // once requested
+l,_ := c.RequestLine(4, gpiod.AsOpenDrain) // during request
+l.Reconfigure(gpiod.AsOpenSource)          // once requested
 ```
 
 The default drive for output lines is push-pull, which actively drives the line
@@ -467,7 +495,7 @@ Option | Category | Description
 *WithDebounce(period)*<sup>**5**</sup> | Debounce | Request the lines be debounced with the provided period
 *WithMonotonicEventClock* | Event Clock | Request the timestamp in edge events use the monotonic clock (**default**)
 *WithRealtimeEventClock*<sup>**6**</sup> | Event Clock | Request the timestamp in edge events use the realtime clock
-*WithLines(offsets, options...)*<sup>3,5</sup> |  | Specify configuration options for a subset of lines in a request
+*WithLines(offsets, options...)*<sup>**3**,**5**</sup> |  | Specify configuration options for a subset of lines in a request
 *Defaulted*<sup>**5**</sup> |  | Reset the configuration for a request to the default configuration, or the configuration of a particular line in a request to the default for that request
 
 The options described as **default** are generally not required, except to override other options earlier in a chain of configuration options.
@@ -487,6 +515,20 @@ with *NewChip* or *Line.Reconfigure*.
 
 <sup>**6**</sup> Requires Linux v5.11 or later.
 
+## Installation
+
+On Linux:
+
+```shell
+go get github.com/warthog618/gpiod
+```
+
+For other platforms, where you intend to cross-compile for Linux, don't attempt to compile the package when it is installed:
+
+```shell
+go get -d github.com/warthog618/gpiod
+```
+
 ## Tools
 
 A command line utility, **gpiodctl**, can be found in the cmd directory and is
@@ -494,7 +536,7 @@ provided to allow manual or scripted manipulation of GPIO lines.  This utility
 combines the Go equivalent of all the **libgpiod** command line tools into a
 single tool.
 
-```
+```shell
 gpiodctl is a utility to control GPIO lines on Linux GPIO character devices
 
 Usage:
@@ -571,7 +613,7 @@ run them on hardware where any of those pins is being externally driven.
 The Raspberry Pi platform is selected by specifying the platform parameter on
 the test command line:
 
-```
+```shell
 go test -platform=rpi
 ```
 
@@ -581,7 +623,7 @@ testing them yet.
 
 The tests can be cross-compiled from other platforms using:
 
-```
+```shell
 GOOS=linux GOARCH=arm GOARM=6 go test -c
 ```
 
@@ -595,7 +637,7 @@ interrupt latency.
 These are the results from a Raspberry Pi Zero W running Linux v5.10 and built
 with go1.15.6:
 
-```
+```shell
 $ ./gpiod.test -platform=rpi -test.bench=.*
 goos: linux
 goarch: arm
@@ -629,6 +671,32 @@ The requirements for each [configuration option](#configuration-options) are
 noted in that section.
 
 ## Release Notes
+
+### v0.8.0
+
+  Add top level *RequestLine* and *RequestLines* functions to simplify common use cases.
+
+  **blinker** and **watcher** examples interwork with each other on a Raspberry Pi with a jumper across **J8-15** and **J8-16**.
+
+  Fix deadlock in **gpiodctl set** no-wait.
+
+### v0.7.0
+
+*LineEvent* exposes sequence numbers for uAPI v2 events.
+
+Info tools (**gpiodctl info** and **gpioinfo**) report debounce-period.
+
+**gpiodctl mon** and watcher example report event sequence numbers.
+
+**gpiodctl mon** supports setting debounce period.
+
+**gpiodctl detect** reports kernel uAPI version in use.
+
+Watchers use Eventfd instead of pipes to reduce open file descriptors.
+
+Start migrating to Go 1.17 go:build style build tags.
+
+Make licensing [REUSE](https://reuse.software/) compliant.
 
 ### v0.6.0
 
