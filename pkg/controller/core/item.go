@@ -87,16 +87,16 @@ func (i *item) eventHandler(evt gpiod.LineEvent) {
 			newState = StateInactive
 		}
 		i.RLock()
-		if i.state == newState {
 
+		i.eventEmmiter(&evt)
+
+		if i.state == newState {
 			i.RUnlock()
 			return
 		}
 		i.RUnlock()
-
 		i.setState(newState)
 
-		i.eventEmmiter(&evt)
 	}
 }
 

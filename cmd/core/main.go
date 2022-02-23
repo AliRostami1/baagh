@@ -61,7 +61,7 @@ func main() {
 	}()
 	go func() {
 		for c := range ledWatcher.Watch() {
-			log.Printf("from led-watcher: %v", c)
+			log.Printf("from led-watcher: %+v", c)
 		}
 	}()
 	go func() {

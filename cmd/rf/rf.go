@@ -1,12 +1,10 @@
 package main
 
 import (
-	"bufio"
 	"context"
 	"log"
 	"os"
 	"os/signal"
-	"strconv"
 	"syscall"
 
 	"github.com/AliRostami1/baagh/internal/logy"
@@ -44,12 +42,12 @@ func main() {
 	defer reciever.Close()
 	logger.Info("reciever registered")
 
-	transmitter, err := rf.NewTransmitter(chipName, 17)
-	if err != nil {
-		log.Fatalf("transmitter failed: %v", err)
-	}
-	defer transmitter.Close()
-	logger.Info("transmitter registered")
+	// transmitter, err := rf.NewTransmitter(chipName, 17)
+	// if err != nil {
+	// 	log.Fatalf("transmitter failed: %v", err)
+	// }
+	// defer transmitter.Close()
+	// logger.Info("transmitter registered")
 
 	go func() {
 		logger.Info("ready to recieve signals")
@@ -63,21 +61,21 @@ func main() {
 		}
 	}()
 
-	go func() {
-		input := bufio.NewScanner(os.Stdin)
-		logger.Info("ready to send signals")
-		// transmitter.Transmit(131564, rf.DefaultProtocols[0], 350)
-		for input.Scan() {
-			code, err := strconv.ParseUint(input.Text(), 10, 64)
-			if err != nil {
-				log.Print("ERROR: can't parse the code: ", err)
-				continue
-			}
-			confirm := transmitter.Transmit(code, rf.DefaultProtocols[0], 350)
-			<-confirm
-			log.Printf("Signal Sent: %#v", code)
-		}
-	}()
+	// go func() {
+	// 	input := bufio.NewScanner(os.Stdin)
+	// 	logger.Info("ready to send signals")
+	// 	// transmitter.Transmit(131564, rf.DefaultProtocols[0], 350)
+	// 	for input.Scan() {
+	// 		code, err := strconv.ParseUint(input.Text(), 10, 64)
+	// 		if err != nil {
+	// 			log.Print("ERROR: can't parse the code: ", err)
+	// 			continue
+	// 		}
+	// 		confirm := transmitter.Transmit(code, rf.DefaultProtocols[0], 350)
+	// 		<-confirm
+	// 		log.Printf("Signal Sent: %#v", code)
+	// 	}
+	// }()
 
 	<-ctx.Done()
 }
