@@ -34,19 +34,16 @@ func main() {
 	if err != nil {
 		log.Fatalf("there was a problem registering led on pin 10, %v", err)
 	}
-	defer led10.Close()
 
 	ledWatcher, err := core.NewWatcher(chipName, 10, core.AsOutput(core.StateActive))
 	if err != nil {
 		log.Fatalf("there was a problem registering led-watcher on pin 10, %v", err)
 	}
-	defer ledWatcher.Close()
 
 	rfWatcher, err := core.NewInputWatcher(chipName, 9)
 	if err != nil {
 		log.Fatalf("there was a problem registering rf-watcher on pin 9, %v", err)
 	}
-	defer rfWatcher.Close()
 
 	go func() {
 		input := bufio.NewScanner(os.Stdin)
@@ -70,11 +67,5 @@ func main() {
 		}
 	}()
 
-	go func() {
-		for {
-			app.Log.Sync()
-		}
-	}()
-
-	<-app.Ctx.Done()
+	core.Close()
 }

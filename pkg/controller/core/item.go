@@ -16,6 +16,7 @@ type ItemInfo struct {
 
 type Item interface {
 	Close() error
+	Closed() bool
 	SetState(State) error
 	State() State
 	Offset() int
@@ -34,7 +35,7 @@ type item struct {
 	events   *eventRegistry
 	options  *ItemOptions
 	tgc      *tgc.Tgc
-	closed   bool
+	// closed   bool
 }
 
 func (i *item) tgcHandler(b bool) {
@@ -88,9 +89,9 @@ func (i *item) tgcHandler(b bool) {
 
 func (i *item) eventHandler(evt gpiod.LineEvent) {
 	i.RLock()
-	state, closed := i.state, i.closed
+	state := i.state
 	i.RUnlock()
-	if !closed {
+	if !i.Closed() {
 		var newState State
 		switch evt.Type {
 		case gpiod.LineEventRisingEdge:
@@ -130,20 +131,19 @@ func (i *item) setState(state State) (err error) {
 	i.RLock()
 	line := i.Line
 	i.RUnlock()
-	if line != nil {
-		err = line.SetValue(int(state))
-		if err != nil {
-			return
-		}
 
-		i.Lock()
-		i.state = state
-		i.Unlock()
-
-		logger.Debugf("state changed to %s on line %d of chip %s", state, line.Offset(), line.Chip())
+	err = line.SetValue(int(state))
+	if err != nil {
 		return
 	}
+
+	i.Lock()
+	i.state = state
+	i.Unlock()
+
+	logger.Debugf("state changed to %s on line %d of chip %s", state, line.Offset(), line.Chip())
 	return
+
 }
 
 func (i *item) removeWatcher(ch chan *ItemEvent) {
@@ -154,17 +154,12 @@ func (i *item) removeWatcher(ch chan *ItemEvent) {
 }
 
 func (i *item) cleanup() (err error) {
+	// set it's state to inactive
+	i.setState(StateInactive)
+
 	i.RLock()
-	i.closed = true
 	line, events := i.Line, i.events
 	i.RUnlock()
-
-	if line != nil {
-		// close the gpiod.Line
-		err = line.Close()
-		// set it's state to inactive
-		i.setState(StateInactive)
-	}
 
 	// delete the item from chip's item registry
 	reg.Delete(i.chipName, i.Offset())
@@ -172,6 +167,8 @@ func (i *item) cleanup() (err error) {
 	// clear all event channels
 	events.Cleanup()
 
+	// close the gpiod.Line
+	err = line.Close()
 	if err != nil {
 		return
 	}
@@ -179,6 +176,13 @@ func (i *item) cleanup() (err error) {
 	logger.Infof("item %d is successfully cleaned up", line.Offset())
 
 	return nil
+}
+
+func (i *item) shutdown() {
+	i.RLock()
+	tgc := i.tgc
+	i.RUnlock()
+	tgc.Shutdown()
 }
 
 // Exported
@@ -240,6 +244,13 @@ func (i *item) Chip() string {
 	i.RLock()
 	defer i.RUnlock()
 	return i.chipName
+}
+
+func (i *item) Closed() bool {
+	i.RLock()
+	tgc := i.tgc
+	i.RUnlock()
+	return !tgc.State()
 }
 
 func (i *item) Close() error {

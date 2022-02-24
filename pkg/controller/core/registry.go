@@ -12,9 +12,9 @@ type registry struct {
 }
 
 func (i *registry) Add(chip string, offset int, it *item) error {
-	i.Lock()
+	i.RLock()
 	reg := i.chips
-	i.Unlock()
+	i.RUnlock()
 
 	if _, ok := reg[chip]; !ok {
 		reg[chip] = map[int]*item{}
@@ -28,16 +28,21 @@ func (i *registry) Add(chip string, offset int, it *item) error {
 }
 
 func (i *registry) Delete(chip string, offset int) {
-	i.Lock()
+	i.RLock()
 	reg := i.chips
-	i.Unlock()
+	i.RUnlock()
 	delete(reg[chip], offset)
 }
 
 func (i *registry) Get(chip string, offset int) (*item, error) {
-	i.Lock()
+	i.RLock()
 	reg := i.chips
-	i.Unlock()
+	i.RUnlock()
+
+	if _, ok := reg[chip]; !ok {
+		reg[chip] = map[int]*item{}
+		return nil, ItemNotFound{offset: offset}
+	}
 
 	item, ok := reg[chip][offset]
 	if !ok {
@@ -47,12 +52,27 @@ func (i *registry) Get(chip string, offset int) (*item, error) {
 }
 
 func (i *registry) ForEach(chip string, fn func(offset int, item *item)) {
-	i.Lock()
+	i.RLock()
 	reg := i.chips
-	i.Unlock()
-	for index, item := range reg[chip] {
+	i.RUnlock()
+	c, ok := reg[chip]
+	if !ok {
+		return
+	}
+	for index, item := range c {
 		fn(index, item)
 	}
+}
+
+func (i *registry) GetAll(chip string) (map[int]*item, error) {
+	i.RLock()
+	reg := i.chips
+	i.RUnlock()
+	c, ok := reg[chip]
+	if !ok {
+		return nil, fmt.Errorf("chip not found")
+	}
+	return c, nil
 }
 
 type DuplicateItemError struct {

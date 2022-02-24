@@ -50,12 +50,6 @@ func New(onChange OnChangeCallback, opts ...Option) (tgc *Tgc, err error) {
 	return
 }
 
-func (t *Tgc) Count() uint {
-	t.Lock()
-	defer t.Unlock()
-	return t.ownerCount
-}
-
 func (t *Tgc) Add() {
 	t.Lock()
 	if t.ownerCount == t.limit {
@@ -78,15 +72,32 @@ func (t *Tgc) Delete() {
 	t.stateChangeCheck()
 }
 
-func (t *Tgc) State() bool {
+func (t *Tgc) Shutdown() {
 	t.Lock()
-	defer t.Unlock()
+	if t.ownerCount == 0 {
+		t.Unlock()
+		return
+	}
+	t.ownerCount = 0
+	t.Unlock()
+	t.stateChangeCheck()
+}
+
+func (t *Tgc) Count() uint {
+	t.RLock()
+	defer t.RUnlock()
+	return t.ownerCount
+}
+
+func (t *Tgc) State() bool {
+	t.RLock()
+	defer t.RUnlock()
 	return t.state
 }
 
 func (t *Tgc) Limit() uint {
-	t.Lock()
-	defer t.Unlock()
+	t.RLock()
+	defer t.RUnlock()
 	return t.limit
 }
 

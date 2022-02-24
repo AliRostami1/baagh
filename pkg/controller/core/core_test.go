@@ -7,7 +7,6 @@ import (
 	"os"
 	"testing"
 
-	// "github.com/AliRostami1/baagh/pkg/mockup"
 	"github.com/AliRostami1/baagh/pkg/controller/core"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -35,39 +34,401 @@ func TestMain(m *testing.M) {
 	os.Exit(rc)
 }
 
-var (
-	biasKernel               = mockup.Semver{5, 5}  // bias flags added
-	setConfigKernel          = mockup.Semver{5, 5}  // setLineConfig ioctl added
-	infoWatchKernel          = mockup.Semver{5, 7}  // watchLineInfo ioctl added
-	uapiV2Kernel             = mockup.Semver{5, 10} // uapi v2 added
-	eventClockRealtimeKernel = mockup.Semver{5, 11} // realtime event clock option added
-)
+// var (
+// 	biasKernel               = mockup.Semver{5, 5}  // bias flags added
+// 	setConfigKernel          = mockup.Semver{5, 5}  // setLineConfig ioctl added
+// 	infoWatchKernel          = mockup.Semver{5, 7}  // watchLineInfo ioctl added
+// 	uapiV2Kernel             = mockup.Semver{5, 10} // uapi v2 added
+// 	eventClockRealtimeKernel = mockup.Semver{5, 11} // realtime event clock option added
+// )
 
 func TestRequestItem(t *testing.T) {
 	// Item offset
 	io := platform.FloatingLines()[0]
 
-	// bad Chip name
+	// fail: bad Chip name
 	i, err := core.RequestItem(platform.Devpath()+"not", 1)
 	assert.NotNil(t, err)
 	require.Nil(t, i)
 
-	// negative Item offset
+	// fail: negative Item offset
 	i, err = core.RequestItem(platform.Devpath(), -1)
 	assert.NotNil(t, err)
 	require.Nil(t, i)
 
-	// out-of-range Item offset
+	// fail: out-of-range Item offset
 	i, err = core.RequestItem(platform.Devpath(), platform.Lines())
 	assert.NotNil(t, err)
 	require.Nil(t, i)
 
-	// success
+	// success: without options
+	i2, err := core.RequestItem(platform.Devpath(), io)
+	assert.Nil(t, err)
+	require.NotNil(t, i2)
+	err = i2.Close()
+	assert.Nil(t, err)
+
+	// success: with input(core.PullDisabled) option
+	i3, err := core.RequestItem(platform.Devpath(), io, core.AsInput(core.PullDisabled))
+	assert.Nil(t, err)
+	require.NotNil(t, i3)
+	err = i3.Close()
+	assert.Nil(t, err)
+
+	// success: with input(core.PullUp) option
+	i4, err := core.RequestItem(platform.Devpath(), io, core.AsInput(core.PullUp))
+	assert.Nil(t, err)
+	require.NotNil(t, i4)
+	err = i4.Close()
+	assert.Nil(t, err)
+
+	// success: with input(core.PullDown) option
+	i5, err := core.RequestItem(platform.Devpath(), io, core.AsInput(core.PullDown))
+	assert.Nil(t, err)
+	require.NotNil(t, i5)
+	err = i5.Close()
+	assert.Nil(t, err)
+
+	// success: with output(high)
+	i6, err := core.RequestItem(platform.Devpath(), io, core.AsOutput(core.StateActive))
+	assert.Nil(t, err)
+	require.NotNil(t, i6)
+	err = i6.Close()
+	assert.Nil(t, err)
+
+	// success: with output(low)
+	i7, err := core.RequestItem(platform.Devpath(), io, core.AsOutput(core.StateInactive))
+	assert.Nil(t, err)
+	require.NotNil(t, i7)
+	err = i7.Close()
+	assert.Nil(t, err)
+
+	// success: multiple request with same config of the same line
+	i8, err := core.RequestItem(platform.Devpath(), io, core.AsOutput(core.StateInactive))
+	assert.Nil(t, err)
+	require.NotNil(t, i8)
+	i9, err := core.RequestItem(platform.Devpath(), io, core.AsOutput(core.StateInactive))
+	assert.Nil(t, err)
+	require.NotNil(t, i9)
+	i10, err := core.RequestItem(platform.Devpath(), io, core.AsOutput(core.StateInactive))
+	assert.Nil(t, err)
+	require.NotNil(t, i10)
+
+	assert.Equal(t, i8, i9)
+	assert.Equal(t, i9, i10)
+
+	err = i8.Close()
+	assert.Nil(t, err)
+
+	err = i9.Close()
+	assert.Nil(t, err)
+
+	err = i10.Close()
+	assert.Nil(t, err)
+
+	// fail: multiple request with different config of the same line
+	i8, err = core.RequestItem(platform.Devpath(), io, core.AsOutput(core.StateInactive))
+	assert.Nil(t, err)
+	require.NotNil(t, i8)
+	i9, err = core.RequestItem(platform.Devpath(), io, core.AsOutput(core.StateActive))
+	assert.Nil(t, err)
+	require.NotNil(t, i9)
+	i10, err = core.RequestItem(platform.Devpath(), io, core.AsInput(core.PullDisabled))
+	assert.NotNil(t, err)
+	require.Nil(t, i10)
+
+	err = i8.Close()
+	assert.Nil(t, err)
+
+	err = i9.Close()
+	assert.Nil(t, err)
+}
+
+func TestItemClose(t *testing.T) {
+	// success: single owner close
+	i := newItem(t)
+	assert.False(t, i.Closed())
+	err := i.Close()
+	assert.Nil(t, err)
+	assert.True(t, i.Closed())
+
+	// success: multi owner close
+	i2 := newItem(t)
+	assert.False(t, i2.Closed())
+	i3 := newItem(t)
+	assert.False(t, i3.Closed())
+	assert.Equal(t, i2, i3)
+	i4 := newItem(t)
+	assert.False(t, i4.Closed())
+	assert.Equal(t, i3, i4)
+
+	err = i2.Close()
+	assert.Nil(t, err)
+	assert.False(t, i2.Closed())
+	err = i3.Close()
+	assert.Nil(t, err)
+	assert.False(t, i3.Closed())
+	err = i4.Close()
+	assert.Nil(t, err)
+	assert.True(t, i4.Closed())
+}
+
+func TestNewWatcher(t *testing.T) {
+	// Item offset
+	io := platform.FloatingLines()[0]
+
+	// fail: bad chip name
+	w, err := core.NewWatcher(platform.Devpath()+"not", io)
+	assert.NotNil(t, err)
+	require.Nil(t, w)
+
+	// fail: negative Item offset
+	w, err = core.NewWatcher(platform.Devpath(), -1)
+	assert.NotNil(t, err)
+	require.Nil(t, w)
+
+	// fail: out-of-range Item offset
+	w, err = core.NewWatcher(platform.Devpath(), platform.Lines())
+	assert.NotNil(t, err)
+	require.Nil(t, w)
+
+	// success: without options
+	w2, err := core.NewWatcher(platform.Devpath(), io)
+	assert.Nil(t, err)
+	require.NotNil(t, w2)
+	err = w2.Close()
+	assert.Nil(t, err)
+
+	// success: with input(core.PullDisabled) option
+	w3, err := core.NewWatcher(platform.Devpath(), io, core.AsInput(core.PullDisabled))
+	assert.Nil(t, err)
+	require.NotNil(t, w3)
+	err = w3.Close()
+	assert.Nil(t, err)
+
+	// success: with input(core.PullUp) option
+	w4, err := core.NewWatcher(platform.Devpath(), io, core.AsInput(core.PullUp))
+	assert.Nil(t, err)
+	require.NotNil(t, w4)
+	err = w4.Close()
+	assert.Nil(t, err)
+
+	// success: with input(core.PullDown) option
+	w5, err := core.NewWatcher(platform.Devpath(), io, core.AsInput(core.PullDown))
+	assert.Nil(t, err)
+	require.NotNil(t, w5)
+	err = w5.Close()
+	assert.Nil(t, err)
+
+	// success: with output(high)
+	w6, err := core.NewWatcher(platform.Devpath(), io, core.AsOutput(core.StateActive))
+	assert.Nil(t, err)
+	require.NotNil(t, w6)
+	err = w6.Close()
+	assert.Nil(t, err)
+
+	// success: with output(low)
+	w7, err := core.NewWatcher(platform.Devpath(), io, core.AsOutput(core.StateInactive))
+	assert.Nil(t, err)
+	require.NotNil(t, w7)
+	err = w7.Close()
+	assert.Nil(t, err)
+
+	// success: multiple request with same config of the same line
+	w8, err := core.NewWatcher(platform.Devpath(), io, core.AsOutput(core.StateInactive))
+	assert.Nil(t, err)
+	require.NotNil(t, w8)
+	w9, err := core.NewWatcher(platform.Devpath(), io, core.AsOutput(core.StateInactive))
+	assert.Nil(t, err)
+	require.NotNil(t, w9)
+	w10, err := core.NewWatcher(platform.Devpath(), io, core.AsOutput(core.StateInactive))
+	assert.Nil(t, err)
+	require.NotNil(t, w10)
+
+	err = w8.Close()
+	assert.Nil(t, err)
+	err = w9.Close()
+	assert.Nil(t, err)
+	err = w10.Close()
+	assert.Nil(t, err)
+
+	// fail: multiple request with different config of the same line
+	w8, err = core.NewWatcher(platform.Devpath(), io, core.AsOutput(core.StateInactive))
+	assert.Nil(t, err)
+	require.NotNil(t, w8)
+	w9, err = core.NewWatcher(platform.Devpath(), io, core.AsOutput(core.StateActive))
+	assert.Nil(t, err)
+	require.NotNil(t, w9)
+	w10, err = core.NewWatcher(platform.Devpath(), io, core.AsInput(core.PullDisabled))
+	assert.NotNil(t, err)
+	require.Nil(t, w10)
+
+	err = w8.Close()
+	assert.Nil(t, err)
+	err = w9.Close()
+	assert.Nil(t, err)
+}
+
+func TestInputWatcher(t *testing.T) {
+	// Item offset
+	io := platform.FloatingLines()[0]
+
+	// fail: bad chip name
+	w, err := core.NewInputWatcher(platform.Devpath()+"not", io)
+	assert.NotNil(t, err)
+	require.Nil(t, w)
+
+	// fail: negative Item offset
+	w, err = core.NewInputWatcher(platform.Devpath(), -1)
+	assert.NotNil(t, err)
+	require.Nil(t, w)
+
+	// fail: out-of-range Item offset
+	w, err = core.NewInputWatcher(platform.Devpath(), platform.Lines())
+	assert.NotNil(t, err)
+	require.Nil(t, w)
+
+	// success: single valid InputWatcher
+	w2, err := core.NewInputWatcher(platform.Devpath(), io)
+	assert.Nil(t, err)
+	require.NotNil(t, w2)
+	err = w2.Close()
+	assert.Nil(t, err)
+
+	// success: multiple valid InputWatcher
+	w8, err := core.NewInputWatcher(platform.Devpath(), io)
+	assert.Nil(t, err)
+	require.NotNil(t, w8)
+	w9, err := core.NewInputWatcher(platform.Devpath(), io)
+	assert.Nil(t, err)
+	require.NotNil(t, w9)
+	w10, err := core.NewInputWatcher(platform.Devpath(), io)
+	assert.Nil(t, err)
+	require.NotNil(t, w10)
+
+	err = w8.Close()
+	assert.Nil(t, err)
+	err = w9.Close()
+	assert.Nil(t, err)
+	err = w10.Close()
+	assert.Nil(t, err)
+}
+
+func TestGetItem(t *testing.T) {
+	// Item offset
+	io := platform.FloatingLines()[0]
+
+	// fail: bad chip name
+	i, err := core.GetItem(platform.Devpath()+"not", io)
+	assert.NotNil(t, err)
+	require.Nil(t, i)
+
+	// fail: negative Item offset
+	i, err = core.GetItem(platform.Devpath(), -1)
+	assert.NotNil(t, err)
+	require.Nil(t, i)
+
+	// fail: out-of-range Item offset
+	i, err = core.GetItem(platform.Devpath(), platform.Lines())
+	assert.NotNil(t, err)
+	require.Nil(t, i)
+
+	// fail: get item that hasn't been registered yet
+	i, err = core.GetItem(platform.Devpath(), io)
+	assert.NotNil(t, err)
+	require.Nil(t, i)
+
+	// success: get an item that has been registered
 	i, err = core.RequestItem(platform.Devpath(), io)
 	assert.Nil(t, err)
 	require.NotNil(t, i)
+	i2, err := core.GetItem(platform.Devpath(), io)
+	assert.Nil(t, err)
+	require.NotNil(t, i2)
+	assert.Equal(t, i, i2)
 
-	i.Close()
+	err = i.Close()
+	assert.Nil(t, err)
+}
+
+func TestSetState(t *testing.T) {
+	// Item offset
+	io := platform.FloatingLines()[0]
+
+	// fail: bad chip name
+	err := core.SetState(platform.Devpath()+"not", io, core.StateActive)
+	assert.NotNil(t, err)
+
+	// fail: negative Item offset
+	err = core.SetState(platform.Devpath(), -1, core.StateActive)
+	assert.NotNil(t, err)
+
+	// fail: out-of-range Item offset
+	err = core.SetState(platform.Devpath(), platform.Lines(), core.StateActive)
+	assert.NotNil(t, err)
+
+	// fail: core.SetState an item that hasn't been registered yet
+	err = core.SetState(platform.Devpath(), io, core.StateActive)
+	assert.NotNil(t, err)
+
+	// success: core.SetState an item that has been registered
+	i, err := core.RequestItem(platform.Devpath(), io, core.AsOutput(core.StateInactive))
+	assert.Nil(t, err)
+	require.NotNil(t, i)
+	for _, s := range []core.State{core.StateActive, core.StateInactive, core.StateActive, core.StateActive} {
+		err = core.SetState(platform.Devpath(), io, s)
+		assert.Nil(t, err)
+		assert.Equal(t, s, i.State())
+	}
+
+	err = i.Close()
+	assert.Nil(t, err)
+}
+
+func TestClose(t *testing.T) {
+	rep, err := core.GetAll(platform.Devpath())
+	assert.Nil(t, err)
+	require.NotNil(t, rep)
+	t.Logf("rep = %+v", rep)
+
+	// success: single owner close
+	i := newItem(t)
+	assert.False(t, i.Closed())
+	t.Logf("rep = %+v", rep)
+
+	err = core.Close()
+	assert.Nil(t, err)
+	t.Logf("rep = {%+#v}", rep[11])
+
+	assert.True(t, i.Closed())
+
+	// success: multi owner close
+	t.SkipNow()
+	i2 := newItem(t)
+	assert.False(t, i2.Closed())
+	i3 := newItem(t)
+	assert.False(t, i3.Closed())
+	assert.Equal(t, i2, i3)
+	i4 := newItem(t)
+	assert.False(t, i4.Closed())
+	assert.Equal(t, i3, i4)
+
+	err = core.Close()
+	assert.Nil(t, err)
+	assert.True(t, i2.Closed())
+	assert.True(t, i3.Closed())
+	assert.True(t, i4.Closed())
+}
+
+func newItem(t *testing.T) core.Item {
+	// Item offset
+	io := platform.FloatingLines()[0]
+
+	i, err := core.RequestItem(platform.Devpath(), io, core.AsOutput(core.StateInactive))
+	assert.Nil(t, err)
+	require.NotNil(t, i)
+
+	return i
 }
 
 type gpiochip struct {

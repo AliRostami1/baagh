@@ -6,22 +6,12 @@ import (
 
 	"github.com/AliRostami1/baagh/pkg/tgc"
 	"github.com/warthog618/gpiod"
-	"go.uber.org/multierr"
 )
 
 var reg = registry{
 	chips:   map[string]map[int]*item{},
 	lines:   map[string]int{},
 	RWMutex: &sync.RWMutex{},
-}
-
-func init() {
-	for _, chip := range gpiod.Chips() {
-		reg.chips[chip] = map[int]*item{}
-		c, _ := gpiod.NewChip(chip)
-		defer c.Close()
-		reg.lines[chip] = c.Lines()
-	}
 }
 
 func isChip(chip string) bool {
@@ -75,7 +65,7 @@ func requestItem(chip string, offset int, opts ...ItemOption) (*item, error) {
 			events:   newEventRegistry(),
 			options:  options,
 			tgc:      nil,
-			closed:   false,
+			// closed:   false,
 		}
 
 		t, err := tgc.New(i.tgcHandler)
@@ -119,22 +109,6 @@ func RequestItem(chip string, offset int, opts ...ItemOption) (Item, error) {
 	return requestItem(chip, offset, opts...)
 }
 
-func GetItem(chip string, offset int) (Item, error) {
-	return reg.Get(chip, offset)
-}
-
-func SetState(chipName string, offset int, state State) (err error) {
-	i, err := GetItem(chipName, offset)
-	if err != nil {
-		return
-	}
-	err = i.SetState(state)
-	if err != nil {
-		return
-	}
-	return
-}
-
 func NewWatcher(chipName string, offset int, opts ...ItemOption) (Watcher, error) {
 	i, err := requestItem(chipName, offset, opts...)
 	if err != nil {
@@ -174,18 +148,38 @@ func NewInputWatcher(chipName string, offset int) (Watcher, error) {
 	return w, nil
 }
 
-func Close() (err error) {
-	for _, chip := range gpiod.Chips() {
-		reg.ForEach(chip, func(offset int, item *item) {
-			err = multierr.Append(err, item.cleanup())
-		})
-	}
+func GetItem(chip string, offset int) (Item, error) {
+	return reg.Get(chip, offset)
+}
+
+func SetState(chipName string, offset int, state State) error {
+	i, err := GetItem(chipName, offset)
 	if err != nil {
-		logger.Errorf(err.Error())
-	} else {
-		logger.Infof("gpio core is successfully cleanedup")
+		return err
 	}
-	return
+	err = i.SetState(state)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func Close() error {
+	for _, chip := range gpiod.Chips() {
+		rep, err := reg.GetAll(chip)
+		if err != nil {
+			return err
+		}
+		for _, item := range rep {
+			item.shutdown()
+		}
+	}
+	return nil
+}
+
+// testing
+func GetAll(chip string) (map[int]*item, error) {
+	return reg.GetAll(chip)
 }
 
 func Chips() []string {
