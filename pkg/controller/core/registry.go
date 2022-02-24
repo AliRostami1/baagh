@@ -51,28 +51,16 @@ func (i *registry) Get(chip string, offset int) (*item, error) {
 	return item, nil
 }
 
-func (i *registry) ForEach(chip string, fn func(offset int, item *item)) {
+func (i *registry) ForEach(fn func(chip string, offset int, item *item)) {
 	i.RLock()
 	reg := i.chips
 	i.RUnlock()
-	c, ok := reg[chip]
-	if !ok {
-		return
+	// logger.Infof("reg = %+#v", reg)
+	for chipName, chip := range reg {
+		for index, item := range chip {
+			fn(chipName, index, item)
+		}
 	}
-	for index, item := range c {
-		fn(index, item)
-	}
-}
-
-func (i *registry) GetAll(chip string) (map[int]*item, error) {
-	i.RLock()
-	reg := i.chips
-	i.RUnlock()
-	c, ok := reg[chip]
-	if !ok {
-		return nil, fmt.Errorf("chip not found")
-	}
-	return c, nil
 }
 
 type DuplicateItemError struct {

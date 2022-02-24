@@ -142,6 +142,8 @@ func TestRequestItem(t *testing.T) {
 
 	err = i9.Close()
 	assert.Nil(t, err)
+
+	require.True(t, i9.Closed())
 }
 
 func TestItemClose(t *testing.T) {
@@ -267,6 +269,8 @@ func TestNewWatcher(t *testing.T) {
 	assert.Nil(t, err)
 	err = w9.Close()
 	assert.Nil(t, err)
+
+	require.True(t, w9.Closed())
 }
 
 func TestInputWatcher(t *testing.T) {
@@ -312,6 +316,8 @@ func TestInputWatcher(t *testing.T) {
 	assert.Nil(t, err)
 	err = w10.Close()
 	assert.Nil(t, err)
+
+	require.True(t, w10.Closed())
 }
 
 func TestGetItem(t *testing.T) {
@@ -349,6 +355,8 @@ func TestGetItem(t *testing.T) {
 
 	err = i.Close()
 	assert.Nil(t, err)
+
+	require.True(t, i.Closed())
 }
 
 func TestSetState(t *testing.T) {
@@ -383,27 +391,25 @@ func TestSetState(t *testing.T) {
 
 	err = i.Close()
 	assert.Nil(t, err)
+
+	require.True(t, i.Closed())
 }
 
 func TestClose(t *testing.T) {
-	rep, err := core.GetAll(platform.Devpath())
-	assert.Nil(t, err)
-	require.NotNil(t, rep)
-	t.Logf("rep = %+v", rep)
-
 	// success: single owner close
 	i := newItem(t)
 	assert.False(t, i.Closed())
-	t.Logf("rep = %+v", rep)
+
+	err := i.Close()
+	assert.Nil(t, err)
+	assert.True(t, i.Closed())
 
 	err = core.Close()
 	assert.Nil(t, err)
-	t.Logf("rep = {%+#v}", rep[11])
 
 	assert.True(t, i.Closed())
 
 	// success: multi owner close
-	t.SkipNow()
 	i2 := newItem(t)
 	assert.False(t, i2.Closed())
 	i3 := newItem(t)

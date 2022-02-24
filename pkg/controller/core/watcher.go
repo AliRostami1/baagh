@@ -4,6 +4,7 @@ type Watcher interface {
 	Close() error
 	Watch() <-chan *ItemEvent
 	State() State
+	Closed() bool
 }
 
 type watcher struct {
@@ -23,4 +24,8 @@ func (w *watcher) Close() error {
 
 func (w *watcher) State() State {
 	return w.item.State()
+}
+
+func (w *watcher) Closed() bool {
+	return w.item.Closed()
 }

@@ -164,22 +164,11 @@ func SetState(chipName string, offset int, state State) error {
 	return nil
 }
 
-func Close() error {
-	for _, chip := range gpiod.Chips() {
-		rep, err := reg.GetAll(chip)
-		if err != nil {
-			return err
-		}
-		for _, item := range rep {
-			item.shutdown()
-		}
-	}
-	return nil
-}
-
-// testing
-func GetAll(chip string) (map[int]*item, error) {
-	return reg.GetAll(chip)
+func Close() (err error) {
+	reg.ForEach(func(chip string, offset int, item *item) {
+		item.shutdown()
+	})
+	return
 }
 
 func Chips() []string {

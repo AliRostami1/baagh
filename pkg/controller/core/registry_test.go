@@ -59,48 +59,23 @@ func TestRegistry(t *testing.T) {
 	var calledChip0 int
 	var calledChip1 int
 	var calledChip2 int
-	for _, chip := range chips {
-		iReg.ForEach(chip, func(offset int, item *item) {
-			assert.Equal(t, it, item)
-			// assert.Equal(t, i.offset, offset)
-			switch chip {
-			case "chip0":
-				calledChip0 += 1
-			case "chip1":
-				calledChip1 += 1
-			case "chip2":
-				calledChip2 += 1
-			}
-			calledTotal += 1
-		})
-	}
+
+	iReg.ForEach(func(chip string, offset int, item *item) {
+		assert.Equal(t, it, item)
+		// assert.Equal(t, i.offset, offset)
+		switch chip {
+		case "chip0":
+			calledChip0 += 1
+		case "chip1":
+			calledChip1 += 1
+		case "chip2":
+			calledChip2 += 1
+		}
+		calledTotal += 1
+	})
+
 	assert.Equal(t, 1, calledChip0)
 	assert.Equal(t, 10, calledChip1)
 	assert.Equal(t, 10, calledChip2)
 	assert.Equal(t, 21, calledTotal)
-
-	calledTotal = 0
-	calledChip0 = 0
-	calledChip1 = 0
-	calledChip2 = 0
-
-	for _, chip := range chips {
-		rep, err := iReg.GetAll(chip)
-		assert.Nil(t, err)
-		require.NotNil(t, rep)
-
-		for _, item := range rep {
-			assert.Equal(t, it, item)
-			// assert.Equal(t, i.offset, offset)
-			switch chip {
-			case "chip0":
-				calledChip0 += 1
-			case "chip1":
-				calledChip1 += 1
-			case "chip2":
-				calledChip2 += 1
-			}
-			calledTotal += 1
-		}
-	}
 }
