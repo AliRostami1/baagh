@@ -33,7 +33,6 @@ func isOffset(chip string, offset int) bool {
 }
 
 func requestItem(chip string, offset int, opts ...ItemOption) (*item, error) {
-	logger.Infof("%+v", reg)
 	// check if chip exists
 	if !isChip(chip) {
 		return nil, fmt.Errorf("chip %s does not exist", chip)

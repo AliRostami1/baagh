@@ -320,6 +320,62 @@ func TestInputWatcher(t *testing.T) {
 	require.True(t, w10.Closed())
 }
 
+func TestWatch(t *testing.T) {
+	// Item offset
+	io := platform.FloatingLines()[0]
+	watcher, err := core.NewWatcher(platform.Devpath(), io)
+	assert.Nil(t, err)
+	require.NotNil(t, watcher)
+
+	i := newItem(t)
+
+	err = i.SetState(core.StateActive)
+	assert.Nil(t, err)
+	le, ok := <-watcher.Watch()
+	assert.True(t, ok)
+	require.NotNil(t, le)
+	assert.False(t, le.IsLineEvent)
+
+	err = i.SetState(core.StateInactive)
+	assert.Nil(t, err)
+	le, ok = <-watcher.Watch()
+	assert.True(t, ok)
+	require.NotNil(t, le)
+	assert.False(t, le.IsLineEvent)
+
+	err = i.SetState(core.StateActive)
+	assert.Nil(t, err)
+
+	le, ok = <-watcher.Watch()
+	assert.True(t, ok)
+	require.NotNil(t, le)
+	assert.False(t, le.IsLineEvent)
+
+	err = i.SetState(core.StateActive)
+	assert.Nil(t, err)
+
+	select {
+	case <-watcher.Watch():
+		assert.Fail(t, "le should not receive anymore messages")
+
+	case le, ok = <-watcher.Watch():
+		assert.Fail(t, "channel should not be closed yet")
+
+	default:
+	}
+
+	err = core.Close()
+	assert.Nil(t, err)
+
+	select {
+	case _, ok = <-watcher.Watch():
+		assert.False(t, ok)
+
+	default:
+		assert.Fail(t, "channel should be closed")
+	}
+}
+
 func TestGetItem(t *testing.T) {
 	// Item offset
 	io := platform.FloatingLines()[0]
@@ -424,6 +480,14 @@ func TestClose(t *testing.T) {
 	assert.True(t, i2.Closed())
 	assert.True(t, i3.Closed())
 	assert.True(t, i4.Closed())
+}
+
+func TestSetLogger(t *testing.T) {
+	err := core.SetLogger(nil)
+	assert.NotNil(t, err)
+
+	err = core.SetLogger(core.DummyLogger{})
+	assert.Nil(t, err)
 }
 
 func newItem(t *testing.T) core.Item {
