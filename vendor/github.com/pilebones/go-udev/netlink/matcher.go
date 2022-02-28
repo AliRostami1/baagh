@@ -1,8 +1,8 @@
 package netlink
 
 import (
+	"fmt"
 	"regexp"
-	"strings"
 )
 
 type Matcher interface {
@@ -32,19 +32,17 @@ func (r RuleDefinition) Evaluate(e UEvent) bool {
 }
 
 // EvaluateAction return true if the action match
-func (r RuleDefinition) EvaluateAction(a KObjAction) bool {
+func (r RuleDefinition) EvaluateAction(a KObjAction) (match bool) {
 	// Compile if needed
 	if r.rule == nil {
 		if err := r.Compile(); err != nil {
 			return false
 		}
 	}
-
-	if r.rule.Action == nil {
-		return true
+	if match = (r.rule.Action == nil); !match {
+		match = r.rule.Action.MatchString(a.String())
 	}
-
-	return r.rule.Action.MatchString(a.String())
+	return
 }
 
 // EvaluateEnv return true if all env match and exists
@@ -61,7 +59,7 @@ func (r RuleDefinition) EvaluateEnv(e map[string]string) bool {
 // Compile prepare rule definition to be able to Evaluate() an UEvent
 func (r *RuleDefinition) Compile() error {
 	r.rule = &rule{
-		Env: make(map[string]*regexp.Regexp),
+		Env: make(map[string]*regexp.Regexp, 0),
 	}
 
 	if r.Action != nil {
@@ -83,28 +81,7 @@ func (r *RuleDefinition) Compile() error {
 }
 
 func (r RuleDefinition) String() string {
-	b := strings.Builder{}
-	b.WriteString("ruledef ( ")
-
-	if r.Action == nil && len(r.Env) == 0 {
-		b.WriteString("empty")
-	} else {
-		if r.Action != nil {
-			b.WriteString("action=")
-			b.WriteString(*r.Action)
-			b.WriteRune(' ')
-		}
-
-		for k, v := range r.Env {
-			b.WriteString("env.")
-			b.WriteString(k)
-			b.WriteRune('=')
-			b.WriteString(v)
-			b.WriteRune(' ')
-		}
-	}
-	b.WriteString(")")
-	return b.String()
+	return fmt.Sprintf("Action: %v / Env: %+v", r.Action, r.Env)
 }
 
 // rule is the compiled version of the RuleDefinition
@@ -125,7 +102,6 @@ func (e Env) Evaluate(env map[string]string) bool {
 				if !reg.MatchString(v) {
 					return false
 				}
-				break
 			}
 		}
 		if !foundEnv {

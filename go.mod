@@ -3,10 +3,9 @@ module github.com/AliRostami1/baagh
 go 1.16
 
 require (
-	github.com/bketelsen/crypt v0.0.4 // indirect
 	github.com/dgraph-io/badger/v3 v3.2103.2
-	github.com/martinohmann/rfoutlet v1.2.0
-	github.com/pilebones/go-udev v0.9.0
+	github.com/gorilla/mux v1.8.0
+	github.com/spf13/cobra v1.3.0 
 	github.com/spf13/viper v1.10.1
 	github.com/stretchr/testify v1.7.0
 	github.com/warthog618/gpiod v0.8.0

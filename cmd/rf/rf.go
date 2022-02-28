@@ -7,9 +7,9 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/AliRostami1/baagh/internal/logy"
 	"github.com/AliRostami1/baagh/pkg/controller/core"
 	"github.com/AliRostami1/baagh/pkg/controller/rf"
+	"github.com/AliRostami1/baagh/pkg/logy"
 	"github.com/warthog618/gpiod"
 )
 
@@ -30,17 +30,17 @@ func main() {
 
 	led, err := core.RequestItem(chipName, 10, core.AsOutput(core.StateInactive))
 	if err != nil {
-		logger.Fatalf("led failed: %v", err)
+		logger.Errorf("led failed: %v", err)
 	}
 	defer led.Close()
-	logger.Info("led registered")
+	logger.Infof("led registered")
 
 	reciever, err := rf.NewReceiver(chipName, 27)
 	if err != nil {
 		log.Fatalf("reciever failed: %v", err)
 	}
 	defer reciever.Close()
-	logger.Info("reciever registered")
+	logger.Infof("reciever registered")
 
 	// transmitter, err := rf.NewTransmitter(chipName, 17)
 	// if err != nil {
@@ -50,7 +50,7 @@ func main() {
 	// logger.Info("transmitter registered")
 
 	go func() {
-		logger.Info("ready to recieve signals")
+		logger.Infof("ready to recieve signals")
 		for c := range reciever.Receive() {
 			log.Printf("Signal Recieved: %#v", c)
 			if c.Code == Open {
