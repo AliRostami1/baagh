@@ -23,19 +23,19 @@ func (s *Server) serverError(rw http.ResponseWriter, e error) {
 	rw.Write(errRes)
 }
 
-func (s *Server) clientError(rw http.ResponseWriter, status int) {
+func (s *Server) clientError(rw http.ResponseWriter, status int, message string) {
 	rw.WriteHeader(status)
 
 	errRes, _ := json.Marshal(ErrorResponse{
 		Success: false,
-		Message: http.StatusText(status),
+		Message: message,
 	})
 
 	rw.Write(errRes)
 }
 
 func (s *Server) notFoundError(rw http.ResponseWriter) {
-	s.clientError(rw, http.StatusNotFound)
+	s.clientError(rw, http.StatusNotFound, http.StatusText(http.StatusNotFound))
 }
 
 type SuccessResponse struct {

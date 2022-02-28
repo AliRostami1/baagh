@@ -45,7 +45,8 @@ func (s *Server) initRoutes() {
 
 	chipsSub := apiSub.PathPrefix("/chips").Subrouter()
 
-	chipsSub.HandleFunc("", s.getAllChips).Methods("GET")
+	chipsSub.HandleFunc("/", s.getAllChips).Methods("GET")
+	chipsSub.HandleFunc("/{chip}", s.getOneChip).Methods("GET")
 
 	// chipsSub.HandleFunc("/item", itemsGetHandler).Methods("GET")
 	// chipsSub.HandleFunc("/item", itemsWatchHandler).Methods("GET").Queries("watch", "true")
@@ -78,8 +79,6 @@ func (s *Server) Start() error {
 			s.logger.Errorf("server crashed: %v", err)
 		}
 	}()
-
-	s.logger.Debugf("%+#v", *s.router)
 
 	// wait for ctx to close
 	<-s.ctx.Done()
