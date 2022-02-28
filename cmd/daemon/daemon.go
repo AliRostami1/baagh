@@ -12,10 +12,6 @@ import (
 	flag "github.com/spf13/pflag"
 )
 
-func version() string {
-	return "0.0.1"
-}
-
 func main() {
 	port := flag.IntP("port", "p", 8080, "port of the web server")
 	addr := flag.StringP("address", "a", "", "address of the web server")
@@ -35,6 +31,7 @@ func main() {
 	}
 
 	s := server.New(app.Ctx, app.Log, fmt.Sprintf("%s:%d", *addr, *port), *wto, *rto, *ito, *shutdownWait)
+
 	err = s.Start()
 	if err != nil {
 		app.Log.Errorf("problem shutting down: %v", err)

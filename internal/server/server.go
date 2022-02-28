@@ -79,6 +79,8 @@ func (s *Server) Start() error {
 		}
 	}()
 
+	s.logger.Debugf("%+#v", *s.router)
+
 	// wait for ctx to close
 	<-s.ctx.Done()
 
