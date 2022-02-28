@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"os"
 
 	"github.com/AliRostami1/baagh/internal/config"
 	"github.com/AliRostami1/baagh/pkg/grace"
@@ -24,11 +25,15 @@ func New(logLevel logy.Level) (*Application, error) {
 		return nil, err
 	}
 
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return nil, err
+	}
 	// get the config
 	config, err := config.New(&config.ConfigOptions{
 		ConfigName:  "config",
 		ConfigType:  "yaml",
-		ConfigPaths: []string{"/etc/baagh/", "~/.config/baagh/"},
+		ConfigPaths: []string{"/etc/baagh/", home + "/.config/baagh/"},
 	})
 	if err != nil {
 		return nil, err
