@@ -37,7 +37,7 @@ func New(ctx context.Context, log logy.Logger, addr string, writeTimeout time.Du
 }
 
 func (s *Server) initMiddlewares() {
-	s.router.Use(s.loggingMiddleware(s.logger))
+	s.router.Use(s.loggingMiddleware)
 }
 
 func (s *Server) initRoutes() {
@@ -48,15 +48,17 @@ func (s *Server) initRoutes() {
 	chipsSub.HandleFunc("/", s.getAllChips).Methods("GET")
 	chipsSub.HandleFunc("/{chip}", s.getOneChip).Methods("GET")
 
-	// chipsSub.HandleFunc("/item", itemsGetHandler).Methods("GET")
-	// chipsSub.HandleFunc("/item", itemsWatchHandler).Methods("GET").Queries("watch", "true")
-	// chipsSub.HandleFunc("/item", itemsPostHandler).Methods("POST")
-	// chipsSub.HandleFunc("/item", itemsDeleteHandler).Methods("DELETE")
+	itemsSub := chipsSub.PathPrefix("/{chip}/items").Subrouter()
 
-	// chipsSub.HandleFunc("/item/{offset:[0-9]+}", itemGetHandler).Methods("GET")
-	// chipsSub.HandleFunc("/item/{offset:[0-9]+}", itemWatchHandler).Methods("GET").Queries("watch", "true")
-	// chipsSub.HandleFunc("/item/{offset:[0-9]+}", itemPostHandler).Methods("POST")
-	// chipsSub.HandleFunc("/item/{offset:[0-9]+}", itemDeleteHandler).Methods("DELETE")
+	// itemsSub.HandleFunc("/", s.getAllItems).Methods("GET")
+	// itemsSub.HandleFunc("/", itemsWatchHandler).Methods("GET").Queries("watch", "true")
+	// itemsSub.HandleFunc("/", itemsPostHandler).Methods("POST")
+	// itemsSub.HandleFunc("/", itemsDeleteHandler).Methods("DELETE")
+
+	itemsSub.HandleFunc("/{offset:[0-9]+}", s.getOneItem).Methods("GET")
+	// itemsSub.HandleFunc("/{offset:[0-9]+}", itemWatchHandler).Methods("GET").Queries("watch", "true")
+	itemsSub.HandleFunc("/{offset:[0-9]+}", s.createOneItem).Methods("POST")
+	// itemsSub.HandleFunc("/{offset:[0-9]+}", itemDeleteHandler).Methods("DELETE")
 
 	// apiSub.HandleFunc("/healthcheck", healthCheckHandler).Methods("GET")
 

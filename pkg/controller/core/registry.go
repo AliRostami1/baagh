@@ -63,6 +63,23 @@ func (i *registry) ForEach(fn func(chip string, offset int, item *item)) {
 	}
 }
 
+// func (i *registry) Info() ([][]ItemInfo, error) {
+// 	var infoArray [][]ItemInfo
+
+// 	j := 0
+// 	for _, chip := range i.chips {
+// 		for _, item := range chip {
+// 			info, err := item.Info()
+// 			if err != nil {
+// 				return nil, err
+// 			}
+// 			infoArray[j] = append(infoArray[j], *info)
+// 		}
+// 		j += 1
+// 	}
+// 	return infoArray, nil
+// }
+
 type DuplicateItemError struct {
 	offset int
 }

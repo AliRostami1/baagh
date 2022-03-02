@@ -7,7 +7,7 @@ import (
 )
 
 type ItemEvent struct {
-	Info        *ItemInfo
+	Info        ItemInfo
 	Item        Item
 	IsLineEvent bool
 	*gpiod.LineEvent

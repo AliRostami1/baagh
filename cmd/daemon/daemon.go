@@ -8,6 +8,7 @@ import (
 
 	"github.com/AliRostami1/baagh/internal/application"
 	"github.com/AliRostami1/baagh/internal/server"
+	"github.com/AliRostami1/baagh/pkg/controller/core"
 	"github.com/AliRostami1/baagh/pkg/logy"
 	flag "github.com/spf13/pflag"
 )
@@ -29,6 +30,10 @@ func main() {
 	if err != nil {
 		log.Fatalf("error happend during application startup: %v", err)
 	}
+
+	// GPIO core stuff
+	core.SetLogger(app.Log)
+	defer core.Close()
 
 	s := server.New(app.Ctx, app.Log, fmt.Sprintf("%s:%d", *addr, *port), *wto, *rto, *ito, *shutdownWait)
 

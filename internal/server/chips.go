@@ -24,6 +24,8 @@ func (s *Server) getAllChips(rw http.ResponseWriter, r *http.Request) {
 			s.serverError(rw, err)
 			return
 		}
+		defer c.Close()
+
 		chips = append(chips, ChipInfo{
 			Name:           c.Name,
 			Label:          c.Label,
@@ -41,6 +43,8 @@ func (s *Server) getOneChip(rw http.ResponseWriter, r *http.Request) {
 		s.clientError(rw, http.StatusNotFound, fmt.Sprintf("chip with name %s not found", vars["chip"]))
 		return
 	}
+	defer c.Close()
+
 	s.sendJSON(rw, ChipInfo{
 		Name:           c.Name,
 		Label:          c.Label,

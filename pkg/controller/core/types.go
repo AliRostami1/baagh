@@ -11,6 +11,18 @@ const (
 	StateActive
 )
 
+func (s *State) Set(value string) error {
+	switch value {
+	case "active":
+		*s = StateActive
+	case "inactive":
+		*s = StateInactive
+	default:
+		return InvalidStateError{}
+	}
+	return nil
+}
+
 func (s State) String() string {
 	switch s {
 	case StateActive:
@@ -18,8 +30,12 @@ func (s State) String() string {
 	case StateInactive:
 		return "inactive"
 	default:
-		return ""
+		panic(InvalidStateError{})
 	}
+}
+
+func (s State) Type() string {
+	return "state"
 }
 
 func (s State) Check() error {
@@ -43,6 +59,18 @@ const (
 	ModeOutput
 )
 
+func (m *Mode) Set(value string) error {
+	switch value {
+	case "input":
+		*m = ModeInput
+	case "output":
+		*m = ModeOutput
+	default:
+		return InvalidModeError{}
+	}
+	return nil
+}
+
 func (m Mode) String() string {
 	switch m {
 	case ModeInput:
@@ -50,8 +78,12 @@ func (m Mode) String() string {
 	case ModeOutput:
 		return "output"
 	default:
-		return ""
+		panic("")
 	}
+}
+
+func (m Mode) Type() string {
+	return "mode"
 }
 
 func (m Mode) Check() error {
@@ -76,6 +108,22 @@ const (
 	PullUp
 )
 
+func (p *Pull) Set(value string) error {
+	switch value {
+	case "unknown":
+		*p = PullUnknown
+	case "disabled":
+		*p = PullDisabled
+	case "down":
+		*p = PullDown
+	case "up":
+		*p = PullUp
+	default:
+		return InvalidPullError{}
+	}
+	return nil
+}
+
 func (p Pull) String() string {
 	switch p {
 	case PullUnknown:
@@ -87,8 +135,12 @@ func (p Pull) String() string {
 	case PullUp:
 		return "up"
 	default:
-		return "ERROR"
+		panic(InvalidPullError{})
 	}
+}
+
+func (p Pull) Type() string {
+	return "pull"
 }
 
 func (p Pull) Check() error {
@@ -101,5 +153,5 @@ func (p Pull) Check() error {
 type InvalidPullError struct{}
 
 func (i InvalidPullError) Error() string {
-	return fmt.Sprintf("mode can't be any value other than %s and %s", ModeOutput, ModeInput)
+	return fmt.Sprintf("pull can't be any value other than %s, %s, %s and %s", PullDisabled, PullUnknown, PullDown, PullUp)
 }

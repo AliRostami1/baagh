@@ -6,6 +6,7 @@ import (
 
 	"github.com/AliRostami1/baagh/pkg/tgc"
 	"github.com/warthog618/gpiod"
+	"go.uber.org/multierr"
 )
 
 var reg = registry{
@@ -88,7 +89,7 @@ func requestItem(chip string, offset int, opts ...ItemOption) (*item, error) {
 			return nil, err
 		}
 		if info.Config.Direction != gpiod.LineDirection(options.mode) {
-			return nil, fmt.Errorf("this item is already registered as %s, you can't register it as %s", Mode(info.Config.Direction), options.mode)
+			return nil, fmt.Errorf("this item is already registered as %v, you can't register it as %v", Mode(info.Config.Direction), options.mode)
 		}
 		logger.Infof("item registerd on line %d of chip %s as %s got a new owner", offset, chip, options.mode)
 	}
@@ -106,6 +107,44 @@ func requestItem(chip string, offset int, opts ...ItemOption) (*item, error) {
 
 func RequestItem(chip string, offset int, opts ...ItemOption) (Item, error) {
 	return requestItem(chip, offset, opts...)
+}
+
+func RequestItemHelper(chip string, offset int, mode string, pull string, state string) (Item, error) {
+	var (
+		m Mode
+		p Pull
+		s State
+	)
+	err := m.Set(mode)
+	if err != nil {
+		return nil, err
+	}
+
+	switch m {
+	case ModeInput:
+		err = p.Set(pull)
+		if err != nil {
+			return nil, err
+		}
+		i, err := requestItem(chip, offset, AsInput(p))
+		if err != nil {
+			return nil, err
+		}
+		return i, nil
+
+	case ModeOutput:
+		err = s.Set(state)
+		if err != nil {
+			return nil, err
+		}
+		i, err := requestItem(chip, offset, AsOutput(s))
+		if err != nil {
+			return nil, err
+		}
+		return i, nil
+	}
+
+	panic("this should not happen")
 }
 
 func NewWatcher(chipName string, offset int, opts ...ItemOption) (Watcher, error) {
@@ -172,4 +211,22 @@ func Close() (err error) {
 
 func Chips() []string {
 	return gpiod.Chips()
+}
+
+func Info() (map[string]map[int]ItemInfo, error) {
+	info := map[string]map[int]ItemInfo{}
+	var gErr error
+
+	reg.ForEach(func(chip string, offset int, item *item) {
+		i, err := item.Info()
+		if err != nil {
+			multierr.Append(gErr, err)
+		}
+		info[chip][offset] = i
+	})
+	if gErr != nil {
+		return nil, gErr
+	}
+
+	return info, nil
 }

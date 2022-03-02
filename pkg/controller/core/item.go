@@ -8,7 +8,7 @@ import (
 )
 
 type ItemInfo struct {
-	*gpiod.LineInfo
+	gpiod.LineInfo
 	State State
 	Mode  Mode
 	Pull  Pull
@@ -23,7 +23,7 @@ type Item interface {
 	Mode() Mode
 	Pull() Pull
 	Chip() string
-	Info() (*ItemInfo, error)
+	Info() (ItemInfo, error)
 }
 
 type item struct {
@@ -207,15 +207,15 @@ func (i *item) State() State {
 	return i.state
 }
 
-func (i *item) Info() (*ItemInfo, error) {
+func (i *item) Info() (ItemInfo, error) {
 	i.RLock()
 	li, err := i.Line.Info()
 	i.RUnlock()
 	if err != nil {
-		return nil, err
+		return ItemInfo{}, err
 	}
-	return &ItemInfo{
-		LineInfo: &li,
+	return ItemInfo{
+		LineInfo: li,
 		State:    i.State(),
 		Mode:     i.Mode(),
 		Pull:     i.Pull(),

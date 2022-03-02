@@ -755,19 +755,19 @@ func newPlatform(pname string) (Platform, error) {
 	}
 }
 
-func requireKernel(t *testing.T, min mockup.Semver) {
-	t.Helper()
-	if err := mockup.CheckKernelVersion(min); err != nil {
-		t.Skip(err)
-	}
-}
+// func requireKernel(t *testing.T, min mockup.Semver) {
+// 	t.Helper()
+// 	if err := mockup.CheckKernelVersion(min); err != nil {
+// 		t.Skip(err)
+// 	}
+// }
 
-func requireABI(t *testing.T, chip *gpiod.Chip, abi int) {
-	t.Helper()
-	if chip.UapiAbiVersion() != abi {
-		t.Skip(ErrorBadABIVersion{abi, chip.UapiAbiVersion()})
-	}
-}
+// func requireABI(t *testing.T, chip *gpiod.Chip, abi int) {
+// 	t.Helper()
+// 	if chip.UapiAbiVersion() != abi {
+// 		t.Skip(ErrorBadABIVersion{abi, chip.UapiAbiVersion()})
+// 	}
+// }
 
 // ErrorBadVersion indicates the kernel version is insufficient.
 type ErrorBadABIVersion struct {

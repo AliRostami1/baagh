@@ -4,29 +4,6 @@ import (
 	"github.com/AliRostami1/baagh/pkg/errprim"
 )
 
-type ChipOption interface {
-	applyChipOption(*ChipOptions) error
-}
-
-type ChipOptions struct {
-	name     string
-	consumer string
-}
-
-type ConsumerOption string
-
-func (n ConsumerOption) applyChipOption(c *ChipOptions) error {
-	if string(n) == "" {
-		return errprim.OptionError{Field: "Consumer", Value: n}
-	}
-	c.consumer = string(n)
-	return nil
-}
-
-func WithConsumer(consumer string) ConsumerOption {
-	return ConsumerOption(consumer)
-}
-
 type ItemOption interface {
 	applyItemOption(*ItemOptions) error
 }
@@ -76,7 +53,8 @@ func AsOutput(state State) OutputOption {
 type StateOption State
 
 func (s StateOption) applyItemOption(item *ItemOptions) (err error) {
-	if err = State(s).Check(); err != nil {
+	state := State(s)
+	if err = state.Check(); err != nil {
 		return errprim.OptionError{Field: "state", Value: s}
 	}
 	item.state = State(s)
