@@ -12,6 +12,9 @@ out/
 # Output of the go coverage tool, specifically when used with LiteIDE
 *.out
 
+# Air tmp directory
+tmp/
+
 # Redis
 dump.rdb
 

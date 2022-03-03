@@ -50,7 +50,7 @@ func (s *Server) initRoutes() {
 
 	itemsSub := chipsSub.PathPrefix("/{chip}/items").Subrouter()
 
-	// itemsSub.HandleFunc("/", s.getAllItems).Methods("GET")
+	itemsSub.HandleFunc("/", s.getAllItems).Methods("GET")
 	// itemsSub.HandleFunc("/", itemsWatchHandler).Methods("GET").Queries("watch", "true")
 	// itemsSub.HandleFunc("/", itemsPostHandler).Methods("POST")
 	// itemsSub.HandleFunc("/", itemsDeleteHandler).Methods("DELETE")
@@ -58,7 +58,7 @@ func (s *Server) initRoutes() {
 	itemsSub.HandleFunc("/{offset:[0-9]+}", s.getOneItem).Methods("GET")
 	// itemsSub.HandleFunc("/{offset:[0-9]+}", itemWatchHandler).Methods("GET").Queries("watch", "true")
 	itemsSub.HandleFunc("/{offset:[0-9]+}", s.createOneItem).Methods("POST")
-	// itemsSub.HandleFunc("/{offset:[0-9]+}", itemDeleteHandler).Methods("DELETE")
+	itemsSub.HandleFunc("/{offset:[0-9]+}", s.deleteOneItem).Methods("DELETE")
 
 	// apiSub.HandleFunc("/healthcheck", healthCheckHandler).Methods("GET")
 

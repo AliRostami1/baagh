@@ -490,12 +490,75 @@ func TestSetLogger(t *testing.T) {
 	assert.Nil(t, err)
 }
 
+func TestItemInfo(t *testing.T) {
+	// Item offset
+	io := platform.FloatingLines()[0]
+
+	i := newItem(t)
+	defer i.Close()
+	info, err := i.Info()
+	assert.Nil(t, err)
+	assert.Equal(t, core.PullUnknown, info.Pull)
+	assert.Equal(t, core.StateInactive, info.State)
+	assert.Equal(t, core.ModeOutput, info.Mode)
+	assert.Equal(t, gpiod.LineDirectionOutput, info.Config.Direction)
+	assert.Equal(t, io, info.Offset)
+	assert.True(t, info.Used)
+
+	i.SetState(core.StateActive)
+	info, err = i.Info()
+	assert.Nil(t, err)
+	assert.Equal(t, core.PullUnknown, info.Pull)
+	assert.Equal(t, core.StateActive, info.State)
+	assert.Equal(t, core.ModeOutput, info.Mode)
+	assert.Equal(t, gpiod.LineDirectionOutput, info.Config.Direction)
+	assert.Equal(t, io, info.Offset)
+	assert.True(t, info.Used)
+}
+
+func TestInfo(t *testing.T) {
+	info, err := core.Info()
+	assert.Nil(t, err)
+	require.NotNil(t, info)
+	assert.Equal(t, 0, len(info))
+
+	for _, chip := range core.Chips() {
+		i, ok := info[chip]
+		assert.False(t, ok)
+		assert.Nil(t, i)
+	}
+
+	for index, io := range platform.FloatingLines() {
+		newItemCustom(t, io)
+
+		info, err := core.Info()
+		assert.Nil(t, err)
+		require.NotNil(t, info)
+		assert.Equal(t, 1, len(info))
+		ci, ok := info[platform.Devpath()]
+		assert.True(t, ok)
+		assert.NotNil(t, ci)
+		assert.Equal(t, index+1, len(ci))
+		for j := 0; j < index; j += 1 {
+			_, ok = ci[platform.FloatingLines()[j]]
+			assert.True(t, ok)
+		}
+	}
+
+	err = core.Close()
+	require.Nil(t, err)
+}
+
 func newItem(t *testing.T) core.Item {
 	// Item offset
 	io := platform.FloatingLines()[0]
 
-	i, err := core.RequestItem(platform.Devpath(), io, core.AsOutput(core.StateInactive))
-	assert.Nil(t, err)
+	return newItemCustom(t, io)
+}
+
+func newItemCustom(t *testing.T, offset int) core.Item {
+	i, err := core.RequestItem(platform.Devpath(), offset, core.AsOutput(core.StateInactive))
+	require.Nil(t, err)
 	require.NotNil(t, i)
 
 	return i

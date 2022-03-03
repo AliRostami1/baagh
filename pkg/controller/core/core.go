@@ -222,6 +222,11 @@ func Info() (map[string]map[int]ItemInfo, error) {
 		if err != nil {
 			multierr.Append(gErr, err)
 		}
+
+		if _, ok := info[chip]; !ok {
+			info[chip] = map[int]ItemInfo{}
+		}
+		// info[chip] = map[int]ItemInfo{}
 		info[chip][offset] = i
 	})
 	if gErr != nil {

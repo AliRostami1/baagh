@@ -85,7 +85,36 @@ func (s *Server) createOneItem(rw http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) deleteOneItem(rw http.ResponseWriter, r *http.Request) {
-	// core.GetItem()
+	vars := mux.Vars(r)
+	chip, itemOffset := vars["chip"], vars["offset"]
+	ioInt, err := strconv.Atoi(itemOffset)
+	if err != nil {
+		// this error should never happen as the route only
+		// cathces offsets that are integers, but we have it
+		// here anyways just in case
+		s.clientError(rw, http.StatusBadRequest, "offset should be integer")
+		return
+	}
+
+	item, err := core.GetItem(chip, ioInt)
+	if err != nil {
+		s.clientError(rw, http.StatusBadRequest, "item not registered")
+		return
+	}
+
+	err = item.Close()
+	if err != nil {
+		s.serverError(rw, err)
+	}
+
+	itemInfo, err := item.Info()
+	if err != nil {
+		s.sendJSON(rw, "item got fully cleaned up")
+		return
+
+	}
+
+	s.sendJSON(rw, itemInfo)
 }
 
 func (s *Server) watchOneItem(rw http.ResponseWriter, r *http.Request) {
@@ -93,7 +122,22 @@ func (s *Server) watchOneItem(rw http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) getAllItems(rw http.ResponseWriter, r *http.Request) {
-	// core.GetItem()
+	chip := mux.Vars(r)["chip"]
+
+	info, err := core.Info()
+	if err != nil {
+		s.serverError(rw, err)
+		return
+	}
+
+	items, ok := info[chip]
+	if !ok {
+		s.clientError(rw, http.StatusBadRequest, "chip not found")
+		return
+	}
+
+	s.sendJSON(rw, items)
+
 }
 
 func (s *Server) watchAllItems(rw http.ResponseWriter, r *http.Request) {
