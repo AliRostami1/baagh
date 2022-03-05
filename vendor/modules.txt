@@ -64,6 +64,9 @@ github.com/hashicorp/hcl/hcl/token
 github.com/hashicorp/hcl/json/parser
 github.com/hashicorp/hcl/json/scanner
 github.com/hashicorp/hcl/json/token
+# github.com/inconshreveable/mousetrap v1.0.0
+## explicit
+github.com/inconshreveable/mousetrap
 # github.com/klauspost/compress v1.12.3
 ## explicit; go 1.13
 github.com/klauspost/compress/fse
@@ -97,6 +100,9 @@ github.com/spf13/afero/mem
 # github.com/spf13/cast v1.4.1
 ## explicit
 github.com/spf13/cast
+# github.com/spf13/cobra v1.3.0
+## explicit; go 1.15
+github.com/spf13/cobra
 # github.com/spf13/jwalterweatherman v1.1.0
 ## explicit
 github.com/spf13/jwalterweatherman
@@ -111,7 +117,7 @@ github.com/spf13/viper/internal/encoding/hcl
 github.com/spf13/viper/internal/encoding/json
 github.com/spf13/viper/internal/encoding/toml
 github.com/spf13/viper/internal/encoding/yaml
-# github.com/stretchr/objx v0.1.0
+# github.com/stretchr/objx v0.1.1
 ## explicit
 github.com/stretchr/objx
 # github.com/stretchr/testify v1.7.0

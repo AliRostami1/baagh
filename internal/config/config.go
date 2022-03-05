@@ -12,7 +12,7 @@ type ConfigOptions struct {
 }
 
 type Config struct {
-	viper.Viper
+	v viper.Viper
 }
 
 func New(options *ConfigOptions) (*Config, error) {
