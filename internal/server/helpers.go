@@ -3,6 +3,8 @@ package server
 import (
 	"encoding/json"
 	"net/http"
+
+	"github.com/gorilla/websocket"
 )
 
 type ErrorResponse struct {
@@ -51,4 +53,28 @@ func (s *Server) sendJSON(rw http.ResponseWriter, data interface{}) {
 	}
 	rw.Header().Set("Content-Type", "application/json")
 	rw.Write(sucRes)
+}
+
+func (s *Server) wsServerError(ws *websocket.Conn, e error) {
+	s.logger.Errorf("internal server error: %v", e)
+
+	err := ws.WriteJSON(ErrorResponse{
+		Success: false,
+		Message: http.StatusText(http.StatusInternalServerError),
+	})
+
+	if marshalError, ok := err.(*json.MarshalerError); ok {
+		s.logger.Errorf("marshaller error: %v", marshalError)
+		return
+	} else if err != nil {
+		s.logger.Errorf("write json error: %v", err)
+	}
+}
+
+func (s *Server) wsSendJSON(ws *websocket.Conn, data interface{}) {
+	err := ws.WriteJSON(SuccessResponse{Success: true, Data: data})
+	if err != nil {
+		s.wsServerError(ws, err)
+		return
+	}
 }

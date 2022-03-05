@@ -45,24 +45,25 @@ func (s *Server) initRoutes() {
 
 	chipsSub := apiSub.PathPrefix("/chips").Subrouter()
 
-	chipsSub.HandleFunc("/", s.getAllChips).Methods("GET")
-	chipsSub.HandleFunc("/{chip}", s.getOneChip).Methods("GET")
+	chipsSub.HandleFunc("/", s.getAllChips).Methods(http.MethodGet)
+	chipsSub.HandleFunc("/{chip}", s.getOneChip).Methods(http.MethodGet)
 
 	itemsSub := chipsSub.PathPrefix("/{chip}/items").Subrouter()
 
-	itemsSub.HandleFunc("/", s.getAllItems).Methods("GET")
-	// itemsSub.HandleFunc("/", itemsWatchHandler).Methods("GET").Queries("watch", "true")
+	itemsSub.HandleFunc("/", s.getAllItems).Methods(http.MethodGet)
+	// itemsSub.HandleFunc("/", s.watchOneItem).Methods(http.MethodGet).Queries("watch", "true")
 	// itemsSub.HandleFunc("/", itemsPostHandler).Methods("POST")
 	// itemsSub.HandleFunc("/", itemsDeleteHandler).Methods("DELETE")
 
-	itemsSub.HandleFunc("/{offset:[0-9]+}", s.getOneItem).Methods("GET")
-	// itemsSub.HandleFunc("/{offset:[0-9]+}", itemWatchHandler).Methods("GET").Queries("watch", "true")
-	itemsSub.HandleFunc("/{offset:[0-9]+}", s.createOneItem).Methods("POST")
-	itemsSub.HandleFunc("/{offset:[0-9]+}", s.deleteOneItem).Methods("DELETE")
+	itemsSub.HandleFunc("/{offset:[0-9]+}", s.getOneItem).Methods(http.MethodGet)
+	itemsSub.HandleFunc("/{offset:[0-9]+}", s.createOneItem).Methods(http.MethodPost)
+	itemsSub.HandleFunc("/{offset:[0-9]+}", s.deleteOneItem).Methods(http.MethodDelete)
+	itemsSub.HandleFunc("/{offset:[0-9]+}", s.patchOneItem).Methods(http.MethodPatch)
+	itemsSub.HandleFunc("/{offset:[0-9]+}/watch", s.watchOneItem).Methods(http.MethodGet)
 
-	// apiSub.HandleFunc("/healthcheck", healthCheckHandler).Methods("GET")
+	// apiSub.HandleFunc("/healthcheck", healthCheckHandler).Methods(http.MethodGet)
 
-	apiSub.HandleFunc("/version", versionHandler).Methods("GET")
+	apiSub.HandleFunc("/version", versionHandler).Methods(http.MethodGet)
 }
 
 func (s *Server) Start() error {

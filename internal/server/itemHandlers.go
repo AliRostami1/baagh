@@ -40,10 +40,10 @@ func (s *Server) getOneItem(rw http.ResponseWriter, r *http.Request) {
 	s.sendJSON(rw, itemInfo)
 }
 
-type createItem struct {
-	Mode  string `json:"mode"`
-	Pull  string `json:"pull"`
-	State string `json:"state"`
+type ItemData struct {
+	Mode  core.Mode  `json:"mode"`
+	Pull  core.Pull  `json:"pull"`
+	State core.State `json:"state"`
 }
 
 func (s *Server) createOneItem(rw http.ResponseWriter, r *http.Request) {
@@ -58,7 +58,7 @@ func (s *Server) createOneItem(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var createItemData createItem
+	var createItemData ItemData
 	decoder := json.NewDecoder(r.Body)
 	err = decoder.Decode(&createItemData)
 
@@ -117,10 +117,6 @@ func (s *Server) deleteOneItem(rw http.ResponseWriter, r *http.Request) {
 	s.sendJSON(rw, itemInfo)
 }
 
-func (s *Server) watchOneItem(rw http.ResponseWriter, r *http.Request) {
-	// core.GetItem()
-}
-
 func (s *Server) getAllItems(rw http.ResponseWriter, r *http.Request) {
 	chip := mux.Vars(r)["chip"]
 
@@ -137,6 +133,50 @@ func (s *Server) getAllItems(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	s.sendJSON(rw, items)
+
+}
+
+func (s *Server) patchOneItem(rw http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	chip, itemOffset := vars["chip"], vars["offset"]
+	ioInt, err := strconv.Atoi(itemOffset)
+	if err != nil {
+		// this error should never happen as the route only
+		// cathces offsets that are integers, but we have it
+		// here anyways just in case
+		s.clientError(rw, http.StatusBadRequest, "offset should be integer")
+		return
+	}
+
+	var itemData ItemData
+	decoder := json.NewDecoder(r.Body)
+	err = decoder.Decode(&itemData)
+
+	if err != nil {
+		s.serverError(rw, fmt.Errorf("decoding body failed: %v", err))
+		return
+	}
+	defer r.Body.Close()
+
+	item, err := core.GetItem(chip, ioInt)
+	if err != nil {
+		s.clientError(rw, http.StatusBadRequest, "item not registered")
+		return
+	}
+
+	err = item.SetState(itemData.State)
+	if err != nil {
+		s.serverError(rw, fmt.Errorf("setState failed: %v", err))
+		return
+	}
+
+	info, err := item.Info()
+	if err != nil {
+		s.serverError(rw, fmt.Errorf("getting info failed: %v", err))
+		return
+	}
+
+	s.sendJSON(rw, info)
 
 }
 

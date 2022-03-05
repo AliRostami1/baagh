@@ -44,7 +44,11 @@ func requestItem(chip string, offset int, opts ...ItemOption) (*item, error) {
 	}
 
 	// apply options
-	options := &ItemOptions{}
+	options := &ItemOptions{
+		mode:  ModeOutput,
+		pull:  PullUnknown,
+		state: StateInactive,
+	}
 	for _, io := range opts {
 		err := io.applyItemOption(options)
 		if err != nil {
@@ -91,7 +95,7 @@ func requestItem(chip string, offset int, opts ...ItemOption) (*item, error) {
 		if info.Config.Direction != gpiod.LineDirection(options.mode) {
 			return nil, fmt.Errorf("this item is already registered as %v, you can't register it as %v", Mode(info.Config.Direction), options.mode)
 		}
-		logger.Infof("item registerd on line %d of chip %s as %s got a new owner", offset, chip, options.mode)
+		logger.Infof("item registerd on line %d of chip %s as %s got a new owner", offset, chip, ModeOutput)
 	}
 
 	// either if it just got created or it was there all along, increment it's tgc
@@ -109,7 +113,33 @@ func RequestItem(chip string, offset int, opts ...ItemOption) (Item, error) {
 	return requestItem(chip, offset, opts...)
 }
 
-func RequestItemHelper(chip string, offset int, mode string, pull string, state string) (Item, error) {
+func RequestItemHelper(chip string, offset int, mode Mode, pull Pull, state State) (Item, error) {
+	switch mode {
+	case ModeInput:
+		i, err := requestItem(chip, offset, AsInput(pull))
+		if err != nil {
+			return nil, err
+		}
+		return i, nil
+
+	case ModeOutput:
+		i, err := requestItem(chip, offset, AsOutput(state))
+		if err != nil {
+			return nil, err
+		}
+		return i, nil
+
+	case ModeUnknown:
+		i, err := requestItem(chip, offset)
+		if err != nil {
+			return nil, err
+		}
+		return i, nil
+	}
+	return nil, fmt.Errorf("wrong mode")
+}
+
+func RequestItemHelperStr(chip string, offset int, mode string, pull string, state string) (Item, error) {
 	var (
 		m Mode
 		p Pull
@@ -142,9 +172,15 @@ func RequestItemHelper(chip string, offset int, mode string, pull string, state 
 			return nil, err
 		}
 		return i, nil
-	}
 
-	panic("this should not happen")
+	case ModeUnknown:
+		i, err := requestItem(chip, offset)
+		if err != nil {
+			return nil, err
+		}
+		return i, nil
+	}
+	panic("this should not have happened")
 }
 
 func NewWatcher(chipName string, offset int, opts ...ItemOption) (Watcher, error) {

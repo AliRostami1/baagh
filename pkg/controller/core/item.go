@@ -143,7 +143,6 @@ func (i *item) setState(state State) (err error) {
 
 	logger.Debugf("state changed to %s on line %d of chip %s", state, line.Offset(), line.Chip())
 	return
-
 }
 
 func (i *item) removeWatcher(ch chan *ItemEvent) {
