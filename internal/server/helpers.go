@@ -41,8 +41,8 @@ func (s *Server) notFoundError(rw http.ResponseWriter) {
 }
 
 type SuccessResponse struct {
-	Success bool
-	Data    interface{}
+	Success bool        `json:"success"`
+	Data    interface{} `json:"data"`
 }
 
 func (s *Server) sendJSON(rw http.ResponseWriter, data interface{}) {
