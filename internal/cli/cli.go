@@ -9,7 +9,10 @@ import (
 	"github.com/spf13/viper"
 )
 
-var overwriteConfigFile string
+var (
+	overwriteConfigFile string
+	daemonAddr          string
+)
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
@@ -41,7 +44,7 @@ func init() {
 	// will be global for your application.
 
 	rootCmd.PersistentFlags().StringVar(&overwriteConfigFile, "config", "", "config file (default is $XDG_CONFIG_HOME/baagh/cli | $HOME/.config/baagh/cli)")
-	rootCmd.PersistentFlags().StringP("daemon", "d", "127.0.0.1:8080", "URL that daemon is listening on, defaults to 127.0.0.1:8080")
+	rootCmd.PersistentFlags().StringVarP(&daemonAddr, "daemon", "d", "http://127.0.0.1:8080", "URL that daemon is listening on, defaults to 127.0.0.1:8080")
 
 	// Cobra also supports local flags, which will only run
 	// when this action is called directly.
